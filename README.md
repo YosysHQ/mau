@@ -49,7 +49,10 @@ It is also possible to run specific tasks individually. To see an overview run:
 
     make help
 
-## Formatting
+## Auto-Formatting and Fixing
 
 When `make ci` or `make formatting` complain about formatting issues, you can
 run `make reformat` to automatically fix the formatting.
+
+When `make ci` or `make lint` complain about linting issues, you can run `make
+fix` to attempt to automatically fix some of these issues.

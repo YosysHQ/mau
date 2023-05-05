@@ -5,17 +5,17 @@ from.
 """
 from __future__ import annotations
 
-from typing import Optional, Union, Callable
-import typing
-from typing_extensions import SupportsIndex
-
-import dataclasses
-from dataclasses import dataclass
-from pathlib import Path
-from os import PathLike
-import re
 import bisect
+import dataclasses
 import itertools
+import re
+import typing
+from dataclasses import dataclass
+from os import PathLike
+from pathlib import Path
+from typing import Callable, Optional, Union
+
+from typing_extensions import SupportsIndex
 
 _RE_NEWLINE = re.compile(r"\n")
 _RE_SPLITLINES = re.compile(r"\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]")

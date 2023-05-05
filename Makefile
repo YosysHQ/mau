@@ -58,6 +58,9 @@ reformat:
 lint:
 	$(PYTHON) -m ruff check src tests $(O)
 
+fix:
+	$(PYTHON) -m ruff check --fix src tests $(O)
+
 typecheck:
 	$(PYTHON) -m pyright src tests $(O)
 

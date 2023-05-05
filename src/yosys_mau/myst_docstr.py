@@ -50,13 +50,12 @@ content is automatically wrapped in an {rst:dir}`inline-doc` to switch the parsi
 from __future__ import annotations
 
 from typing import Any, Callable
-import sphinx
-from sphinx.application import Sphinx
 
+import sphinx
 from docutils import utils
 from docutils.nodes import Node
-from docutils.parsers.rst import Directive
-from docutils.parsers.rst import directives
+from docutils.parsers.rst import Directive, directives
+from sphinx.application import Sphinx
 
 
 class InlineDoc(Directive):

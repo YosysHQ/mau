@@ -1,18 +1,17 @@
-import pytest
-from hypothesis import given, strategies as st
-
-from typing import Optional, Union
-
+import tempfile
 from contextlib import contextmanager
 from os import PathLike
 from pathlib import Path
-import tempfile
+from typing import Optional, Union
 
+import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 from yosys_mau.source_str import (
-    read_file,
-    source_map,
     SourceStr,
     _from_content,
+    read_file,
+    source_map,
 )
 
 
