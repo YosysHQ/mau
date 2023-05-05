@@ -1,0 +1,44 @@
+[project]
+name = "yosys_mau"
+version = "0.0.1"
+description = "Modular application utilities for Yosys frontends"
+
+[project.optional-dependencies]
+dev = [
+    # Documentation
+    "sphinx",
+    "furo",
+    "myst_parser",
+
+    # Testing
+    "pytest",
+    "pytest-cov",
+    "pytest-xdist[psutil]",
+    "hypothesis",
+
+    # Formatting
+    "black",
+
+    # Linting
+    "ruff",
+
+    # Type checking
+    "pyright",
+]
+
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
+
+filterwarnings = [ # Remove this once https://github.com/pytest-dev/pytest-cov/issues/557 hits a pytest-cov release
+    "error",
+    "ignore:The --rsyncdir command line argument and rsyncdirs config variable are deprecated.:DeprecationWarning",
+]
+
+[tool.pyright]
