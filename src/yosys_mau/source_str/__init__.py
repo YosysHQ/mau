@@ -48,7 +48,7 @@ class SourceStr(str):
             returns a plain <inv:py#str>.
 
         """
-        if source_map is None or not value:
+        if source_map is None or not source_map.spans or not value:
             # Without a source map, we can just use the builtin str
             return value
 
@@ -61,7 +61,7 @@ class SourceStr(str):
         object.__setattr__(new, "source_map", source_map)
         return new
 
-    def __getitem__(self, key: SupportsIndex | slice) -> SourceStr:
+    def __getitem__(self, key: SupportsIndex | slice) -> str:
         """Source tracking slicing.
 
         Not all slicing operations are source tracking, but `[start:stop]`, `[start:]`, `[:stop]`
@@ -69,17 +69,17 @@ class SourceStr(str):
         """
         return SourceStr(super().__getitem__(key), self.source_map[key])
 
-    def __add__(self, other: str) -> SourceStr:
+    def __add__(self, other: str) -> str:
         """Source tracking concatenation."""
         return SourceStr(super().__add__(other), self.source_map + source_map(other))
 
-    def __radd__(self, other: str) -> SourceStr:
+    def __radd__(self, other: str) -> str:
         return SourceStr(other.__add__(self), source_map(other) + self.source_map)
 
-    def __str__(self) -> SourceStr:
+    def __str__(self) -> str:
         return self
 
-    def splitlines(self, keepends: bool = False) -> list[SourceStr]:
+    def splitlines(self, keepends: bool = False) -> list[str]:
         """Source tracking implementation of <inv:py#str.splitlines>."""
         result = []
         pos = 0
@@ -90,7 +90,7 @@ class SourceStr(str):
             result.append(self[pos:])
         return result
 
-    def split(self, sep: str | None = None, maxsplit: int = -1) -> list[SourceStr]:
+    def split(self, sep: str | None = None, maxsplit: int = -1) -> list[str]:
         """Source tracking implementation of <inv:py#str.split>."""
         if maxsplit == 0:
             if sep is None:
@@ -127,7 +127,7 @@ class SourceStr(str):
 
         return result
 
-    def strip(self, chars: str | None = None) -> SourceStr:
+    def strip(self, chars: str | None = None) -> str:
         """Source tracking implementation of <inv:py#str.strip>."""
         chars_re = f"[{stdlib_re.escape(chars)}]" if chars is not None else r"\s"
 
@@ -138,7 +138,7 @@ class SourceStr(str):
         else:
             return self.lstrip(chars)
 
-    def rstrip(self, chars: str | None = None) -> SourceStr:
+    def rstrip(self, chars: str | None = None) -> str:
         """Source tracking implementation of <inv:py#str.rstrip>."""
         chars_re = f"[{stdlib_re.escape(chars)}]" if chars is not None else r"\s"
         if match := stdlib_re.search(f"{chars_re}+$", self):
@@ -146,7 +146,7 @@ class SourceStr(str):
         else:
             return self
 
-    def lstrip(self, chars: str | None = None) -> SourceStr:
+    def lstrip(self, chars: str | None = None) -> str:
         """Source tracking implementation of <inv:py#str.lstrip>."""
         chars_re = f"[{stdlib_re.escape(chars)}]" if chars is not None else r"\s"
         if match := stdlib_re.match(f"{chars_re}+", self):
@@ -169,7 +169,7 @@ def read_file(
     *,
     store_content: Optional[bool] = None,
     relative_to: Optional[PathLike] = None,
-) -> SourceStr:
+) -> str:
     """Read a file into a {py:class}`SourceStr` that track's its source.
 
     :param path: The path to the file to read.
@@ -204,7 +204,7 @@ def _from_content(
     *,
     store_content: Optional[bool] = None,
     user_path: Optional[Path] = None,
-) -> SourceStr:
+) -> str:
     if user_path is None:
         user_path = absolute_path
 

@@ -9,7 +9,6 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from yosys_mau.source_str import (
-    SourceStr,
     _from_content,
     read_file,
     source_map,
@@ -23,7 +22,7 @@ def fake_source_str(
     content: str,
     path: Union[PathLike, str],
     user_path: Optional[Union[PathLike, str]] = None,
-) -> SourceStr:
+) -> str:
     return _from_content(Path(path), content, user_path=Path(user_path) if user_path else None)
 
 
