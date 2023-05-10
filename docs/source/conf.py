@@ -93,5 +93,5 @@ def process_docstring(app, what, name, obj, options, lines):
     if what == "module":
         try:
             lines[: lines.index("")] = []
-        except IndexError:
+        except ValueError:
             pass
