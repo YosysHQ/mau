@@ -8,7 +8,7 @@ from __future__ import annotations
 import bisect
 import dataclasses
 import itertools
-import re
+import re as stdlib_re
 import typing
 from dataclasses import dataclass
 from os import PathLike
@@ -17,9 +17,11 @@ from typing import Callable, Optional, Union
 
 from typing_extensions import SupportsIndex
 
-_RE_NEWLINE = re.compile(r"\n")
-_RE_SPLITLINES = re.compile(r"\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]")
-_RE_WHITESPACE = re.compile(r"\s+")
+from . import re
+
+_RE_NEWLINE = stdlib_re.compile(r"\n")
+_RE_SPLITLINES = stdlib_re.compile(r"\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]")
+_RE_WHITESPACE = stdlib_re.compile(r"\s+")
 
 
 @dataclass(init=False, frozen=True, repr=False)
@@ -104,7 +106,7 @@ class SourceStr(str):
         else:
             if not sep:
                 raise ValueError("empty separator")
-            sep_re = re.compile(re.escape(sep))
+            sep_re = stdlib_re.compile(stdlib_re.escape(sep))
 
         result = []
 
@@ -127,10 +129,10 @@ class SourceStr(str):
 
     def strip(self, chars: str | None = None) -> SourceStr:
         """Source tracking implementation of <inv:py#str.strip>."""
-        chars_re = f"[{re.escape(chars)}]" if chars is not None else r"\s"
+        chars_re = f"[{stdlib_re.escape(chars)}]" if chars is not None else r"\s"
 
-        if rmatch := re.search(f"{chars_re}+$", self):
-            if lmatch := re.match(f"{chars_re}+", self):
+        if rmatch := stdlib_re.search(f"{chars_re}+$", self):
+            if lmatch := stdlib_re.match(f"{chars_re}+", self):
                 return self[lmatch.end() : rmatch.start()]
             return self[: rmatch.start()]
         else:
@@ -138,16 +140,16 @@ class SourceStr(str):
 
     def rstrip(self, chars: str | None = None) -> SourceStr:
         """Source tracking implementation of <inv:py#str.rstrip>."""
-        chars_re = f"[{re.escape(chars)}]" if chars is not None else r"\s"
-        if match := re.search(f"{chars_re}+$", self):
+        chars_re = f"[{stdlib_re.escape(chars)}]" if chars is not None else r"\s"
+        if match := stdlib_re.search(f"{chars_re}+$", self):
             return self[: match.start()]
         else:
             return self
 
     def lstrip(self, chars: str | None = None) -> SourceStr:
         """Source tracking implementation of <inv:py#str.lstrip>."""
-        chars_re = f"[{re.escape(chars)}]" if chars is not None else r"\s"
-        if match := re.match(f"{chars_re}+", self):
+        chars_re = f"[{stdlib_re.escape(chars)}]" if chars is not None else r"\s"
+        if match := stdlib_re.match(f"{chars_re}+", self):
             return self[match.end() :]
         else:
             return self
