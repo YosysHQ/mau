@@ -52,14 +52,13 @@ To obtain a {py:class}`SourceMap` from either {py:class}`SourceStr` or a plain `
 :members:
 :::
 
-:::{todo}
+## Generating Diagnostics
 
-Implementation and section on generating diagnostic messages
-
+:::{autodoc} module yosys_mau.source_str.report
+:members:
 :::
 
-
-### Regular Expression Support
+## Regular Expression Support
 
 :::{autodoc} module yosys_mau.source_str.re
 :members: compile, search, match, fullmatch, split, findall, finditer

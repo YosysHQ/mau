@@ -36,7 +36,8 @@ PYTHON ?= python3
 
 SPHINXBUILD ?= $(PYTHON) -m sphinx-build
 
-.PHONY: help docs test formatting reformat lint ci
+.PHONY: help docs test formatting reformat lint fix
+.PHONY: typecheck typecheck-pyright typecheck-mypy ci
 
 docs: docs-html
 

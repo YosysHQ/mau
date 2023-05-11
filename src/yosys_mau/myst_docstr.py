@@ -81,7 +81,7 @@ class InlineDoc(Directive):
 
 
 class _ForwardOptions:
-    def __getitem__(self, key) -> Callable[[str], Any]:
+    def __getitem__(self, key: str) -> Callable[[str], Any]:
         return directives.unchanged
 
 
@@ -118,7 +118,7 @@ class Autodoc(Directive):
 def setup(app: Sphinx) -> dict[str, Any]:
     app.add_directive("inline-doc", InlineDoc)
     app.add_directive("autodoc", Autodoc)
-    app.connect("autodoc-process-docstring", _process_docstring)
+    app.connect("autodoc-process-docstring", _process_docstring)  # type: ignore
 
     return {"version": sphinx.__display_version__, "parallel_read_safe": True}
 

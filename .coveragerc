@@ -1,9 +1,7 @@
 [report]
 exclude_lines =
     # pragma: no cover
-    ^\s+...\s*(#.*)?$
+    ^\s+\.\.\.\s*(#.*)?$
 
 omit =
     src/yosys_mau/myst_docstr.py
-
-skip_covered = True

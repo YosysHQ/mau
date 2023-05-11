@@ -3,6 +3,7 @@
 This module provides a string type {py:func}`SourceStr` which remembers the source it originates
 from.
 """
+# pyright: reportPrivateUsage = false
 from __future__ import annotations
 
 import bisect
@@ -10,21 +11,20 @@ import dataclasses
 import itertools
 import re as stdlib_re
 import typing
+from collections import defaultdict
 from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Iterable
 
 from typing_extensions import SupportsIndex
-
-from . import re
 
 _RE_NEWLINE = stdlib_re.compile(r"\n")
 _RE_SPLITLINES = stdlib_re.compile(r"\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]")
 _RE_WHITESPACE = stdlib_re.compile(r"\s+")
 
 
-@dataclass(init=False, frozen=True, repr=False)
+@dataclass(init=False, frozen=True, repr=False, eq=False)
 class SourceStr(str):
     """String type which remembers the source it originates from.
 
@@ -42,7 +42,7 @@ class SourceStr(str):
     """
 
     # The str builtin is special so we override __new__ instead of __init__
-    def __new__(cls, value: str, source_map: Optional[SourceMap] = None):
+    def __new__(cls, value: str, source_map: SourceMap | None = None):
         """
         :param source_map: The source map to associate with the string. If not given, this actually
             returns a plain <inv:py#str>.
@@ -81,7 +81,7 @@ class SourceStr(str):
 
     def splitlines(self, keepends: bool = False) -> list[str]:
         """Source tracking implementation of <inv:py#str.splitlines>."""
-        result = []
+        result: list[str] = []
         pos = 0
         for match in _RE_SPLITLINES.finditer(self):
             result.append(self[pos : match.end() if keepends else match.start()])
@@ -90,8 +90,9 @@ class SourceStr(str):
             result.append(self[pos:])
         return result
 
-    def split(self, sep: str | None = None, maxsplit: int = -1) -> list[str]:
+    def split(self, sep: str | None = None, maxsplit: SupportsIndex = -1) -> list[str]:
         """Source tracking implementation of <inv:py#str.split>."""
+        maxsplit = maxsplit.__index__()
         if maxsplit == 0:
             if sep is None:
                 stripped = self.lstrip()
@@ -108,7 +109,7 @@ class SourceStr(str):
                 raise ValueError("empty separator")
             sep_re = stdlib_re.compile(stdlib_re.escape(sep))
 
-        result = []
+        result: list[str] = []
 
         pos = 0
 
@@ -154,6 +155,55 @@ class SourceStr(str):
         else:
             return self
 
+    def replace(self, old: str, new: str, count: SupportsIndex = -1) -> str:
+        """Source tracking implementation of <inv:py#str.replace>."""
+        if not old:
+            raise ValueError("empty old string")
+
+        return SourceStr.join(new, self.split(old, count))
+
+    def join(self: str, iterable: Iterable[str]) -> str:
+        """Source tracking implementation of <inv:py#str.join>.
+
+        :::{note}
+          When using join, `self` often isn't a {py:class}`SourceStr` even when the arguments are.
+          Since we can only override methods according to the receiver `self`, to ensure source
+          tracking, this has to be invoked as `SourceStr.join(self, iterable)`.
+        :::
+
+        """
+
+        def inject_sep(iterable: Iterable[str]) -> Iterable[str]:
+            iterator = iter(iterable)
+            yield next(iterator)
+            for part in iterator:
+                yield self
+                yield part
+
+        if not self:
+            return concat(iterable)
+
+        return concat(inject_sep(iterable))
+
+
+def concat(strings: Iterable[str]) -> str:
+    """Source tracking concatenation of multiple strings.
+
+    This is an alternative to `"".join(strings)` that preserves source tracking information.
+    """
+
+    strings = list(strings)
+
+    if not strings:
+        return ""
+
+    concat_map = source_map(strings[0])
+
+    for string in strings[1:]:
+        concat_map += source_map(string)
+
+    return SourceStr("".join(strings), source_map=concat_map)
+
 
 def source_map(string: str) -> SourceMap:
     """The source map of a string."""
@@ -165,10 +215,10 @@ def source_map(string: str) -> SourceMap:
 
 
 def read_file(
-    path: Union[PathLike, str],
+    path: PathLike[Any] | str,
     *,
-    store_content: Optional[bool] = None,
-    relative_to: Optional[PathLike] = None,
+    store_content: bool | None = None,
+    relative_to: PathLike[Any] | str | None = None,
 ) -> str:
     """Read a file into a {py:class}`SourceStr` that track's its source.
 
@@ -183,12 +233,7 @@ def read_file(
 
     :returns: A {py:class}`SourceStr` that tracks the file's source.
     """
-    user_path = Path(path)
-    if relative_to is not None:
-        relative_to = Path(relative_to)
-        absolute_path = (relative_to / user_path).absolute()
-    else:
-        absolute_path = user_path.absolute()
+    user_path, absolute_path = _resolve_path(path, relative_to)
 
     return _from_content(
         absolute_path,
@@ -198,17 +243,61 @@ def read_file(
     )
 
 
+def from_content(
+    content: str,
+    path: PathLike[Any] | str,
+    *,
+    store_content: bool | None = None,
+    relative_to: PathLike[Any] | str | None = None,
+) -> str:
+    """Annotate an existing string with source tracking information.
+
+    :param content: The string to annotate.
+
+    :param path: The path to the file the string was read from.
+
+    :param store_content: Whether to store the file's content in memory even when only parts of it
+        are still referenced. By default only files below 1MiB are stored, but this option can force
+        or prevent storing the content.
+
+    :param relative_to: The path to resolve relative paths against. If not given, the current
+        working directory is used.
+
+    :returns: A {py:class}`SourceStr` that tracks the file's source.
+    """
+    user_path, absolute_path = _resolve_path(path, relative_to)
+
+    return _from_content(
+        absolute_path,
+        content,
+        store_content=store_content,
+        user_path=user_path,
+    )
+
+
+def _resolve_path(
+    path: PathLike[Any] | str, relative_to: PathLike[Any] | str | None
+) -> tuple[Path, Path]:
+    user_path = Path(path)
+    if relative_to is not None:
+        relative_to = Path(relative_to)
+        absolute_path = (relative_to / user_path).absolute()
+    else:
+        absolute_path = user_path.absolute()
+    return (user_path, absolute_path)
+
+
 def _from_content(
     absolute_path: Path,
     content: str,
     *,
-    store_content: Optional[bool] = None,
-    user_path: Optional[Path] = None,
+    store_content: bool | None = None,
+    user_path: Path | None = None,
 ) -> str:
     if user_path is None:
         user_path = absolute_path
 
-    cached_content = content
+    cached_content: str | None = content
 
     newlines = tuple(match.start() for match in _RE_NEWLINE.finditer(content))
 
@@ -224,7 +313,12 @@ def _from_content(
 
     span = SourceMapSpan(str_start=0, len=len(content), file=source_file, file_start=0)
 
-    return SourceStr(content, SourceMap(len=len(content), spans=(span,)))
+    tracked_content = SourceStr(content, SourceMap(len=len(content), spans=(span,)))
+
+    if cached_content is not None:
+        object.__setattr__(source_file, "content", tracked_content)
+
+    return tracked_content
 
 
 @dataclass(frozen=True, repr=False)
@@ -248,14 +342,14 @@ class SourceSpans:
     def __repr__(self) -> str:
         return self._str(repr)
 
-    def close_gaps(self, max_gap=3) -> SourceSpans:
+    def close_gaps(self, max_gap: int = 3, line_mode: bool = False) -> SourceSpans:
         """Sorts contained spans and merges almost adjacent spans.
 
         :param max_gap: The maximum gap between two spans that will be merged.
         :returns: A new {py:class}`SourceSpans` with sorted and merged spans.
         """
-        spans = []
-        file_order = {}
+        spans: list[SourceSpan] = []
+        file_order: dict[SourceFile, int] = {}
         for span in self.spans:
             file_order[span.file] = len(file_order)
         for span in sorted(self.spans, key=lambda span: (file_order[span.file], span.file_start)):
@@ -263,11 +357,29 @@ class SourceSpans:
                 spans.append(span)
                 continue
             last = spans[-1]
-            if last.file == span.file and last.file_end + max_gap >= span.file_start:
-                spans[-1] = dataclasses.replace(
-                    last, len=max(last.len, span.file_end - last.file_start)
-                )
+            if last.file == span.file:
+                merge = False
+
+                if line_mode:
+                    last_end_line, _ = last.file.text_position(last.file_end)
+                    span_start_line, _ = span.file.text_position(span.file_start)
+
+                    merge = last_end_line + max_gap >= span_start_line
+                else:
+                    merge = last.file_end + max_gap >= span.file_start
+
+                if merge:
+                    spans[-1] = dataclasses.replace(
+                        last, len=max(last.len, span.file_end - last.file_start)
+                    )
         return SourceSpans(spans=tuple(spans))
+
+    def group_by_file(self) -> dict[SourceFile, SourceSpans]:
+        by_file: dict[SourceFile, list[SourceSpan]] = defaultdict(list)
+        for span in self.spans:
+            by_file[span.file].append(span)
+
+        return {file: SourceSpans(spans=tuple(spans)) for file, spans in by_file.items()}
 
     def __add__(self, other: SourceSpans) -> SourceSpans:
         """Concatenates two collections of source spans."""
@@ -296,24 +408,26 @@ class SourceMap(SourceSpans):
     They are stored in order, to allow for binary searches.
     """
 
-    def __getitem__(self, key: SupportsIndex | slice) -> Optional[SourceMap]:
+    def __getitem__(self, key: SupportsIndex | slice) -> SourceMap | None:
         if isinstance(key, slice) and (key.step is None or key.step == 1):
             start = self._index(key.start, 0)
             end = self._index(key.stop, None)
             return self._for_subslice(start, end)
+        else:
+            raise IndexError("SourceMap only supports slicing with the default step of 1.")
 
     def __len__(self) -> int:
         return self.len
 
     @typing.overload
-    def _index(self, index: Optional[int], default: int) -> int:
+    def _index(self, index: int | None, default: int) -> int:
         ...
 
     @typing.overload
-    def _index(self, index: Optional[int], default: None) -> None:
+    def _index(self, index: int | None, default: None) -> None:
         ...
 
-    def _index(self, index: Optional[int], default: Optional[int]) -> Optional[int]:
+    def _index(self, index: int | None, default: int | None) -> int | None:
         if index is None:
             return default
         elif index < 0:
@@ -321,7 +435,7 @@ class SourceMap(SourceSpans):
         else:
             return index
 
-    def _for_subslice(self, start: int, end: Optional[int]) -> SourceMap:
+    def _for_subslice(self, start: int, end: int | None) -> SourceMap:
         end_pos = self.len if end is None else end
 
         if start >= end_pos:
@@ -352,7 +466,7 @@ class SourceMap(SourceSpans):
                 lo = mid + 1
         return lo
 
-    def _bisect_ending_at(self, at: Optional[int]) -> int:
+    def _bisect_ending_at(self, at: int | None) -> int:
         """Index after the last span that overlaps a subslice.
 
         :param at: The end of the subslice or `None` if it extends to the end of the string.
@@ -371,7 +485,17 @@ class SourceMap(SourceSpans):
                 hi = mid
         return lo
 
+    @typing.overload
     def __add__(self, other: SourceMap) -> SourceMap:
+        ...
+
+    @typing.overload
+    def __add__(self, other: SourceSpans) -> SourceSpans:
+        ...
+
+    def __add__(self, other: SourceSpans) -> SourceSpans:
+        if not isinstance(other, SourceMap):
+            return super().__add__(other)
         if not other.spans:
             return SourceMap(len=self.len + other.len, spans=self.spans)
         if self.spans and other.spans:
@@ -421,7 +545,7 @@ class SourceMap(SourceSpans):
         if self.simple_span:
             return to_str(self.spans[0])
         else:
-            out = []
+            out: list[str] = []
 
             pos = 0
 
@@ -453,6 +577,9 @@ class SourceMap(SourceSpans):
     def __repr__(self) -> str:
         return self._str(repr)
 
+    def __bool__(self) -> bool:
+        return bool(self.spans)
+
     def detached(self) -> SourceSpans:
         """Returns the source spans of this source map, detached from their position in
         the string."""
@@ -481,7 +608,7 @@ class SourceFile:
     newlines: tuple[int, ...]
     """The indices of all newlines in the file."""
 
-    content: Optional[str] = None
+    content: str | None = None
     """The content of the file.
 
     This is optional as we may not want to store huge files in memory.
@@ -505,6 +632,18 @@ class SourceFile:
         line = bisect.bisect_left(self.newlines, offset)
         preceding_newline = self.newlines[line - 1] if line > 0 else -1
         return line + 1, offset - preceding_newline
+
+    def text_lines(self, start_line: int, end_line: int) -> str:
+        if self.content is None:
+            raise ValueError("Cannot get text lines for source files without cached content")
+
+        start_line -= 1
+        end_line -= 1
+
+        start = 0 if start_line <= 0 else self.newlines[start_line - 1] + 1
+        end = len(self.content) if end_line >= len(self.newlines) else self.newlines[end_line]
+
+        return self.content[start:end]
 
 
 @dataclass(frozen=True, repr=False)
@@ -534,7 +673,7 @@ class SourceSpan:
     def __repr__(self) -> str:
         return self._str(repr(self.file))
 
-    def _str(self, filename):
+    def _str(self, filename: str) -> str:
         start_line, start_column = self.file.text_position(self.file_start)
         end_line, end_column = self.file.text_position(self.file_end)
         if start_line == end_line:
@@ -558,7 +697,7 @@ class SourceMapSpan(SourceSpan):
         """End of the span in the string."""
         return self.str_start + self.len
 
-    def _for_subslice_unchecked(self, start: int, end: Optional[int]) -> SourceMapSpan:
+    def _for_subslice_unchecked(self, start: int, end: int | None) -> SourceMapSpan:
         """Part of the span that overlaps a given subslice of the string.
 
         This assumes that the span overlaps the subslice, use {py:meth}`_for_subslice` if that is
