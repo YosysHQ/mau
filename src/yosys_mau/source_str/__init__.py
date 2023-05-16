@@ -24,7 +24,6 @@ _RE_SPLITLINES = stdlib_re.compile(r"\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]
 _RE_WHITESPACE = stdlib_re.compile(r"\s+")
 
 
-@dataclass(init=False, frozen=True, repr=False, eq=False)
 class SourceStr(str):
     """String type which remembers the source it originates from.
 
@@ -34,12 +33,17 @@ class SourceStr(str):
     `source_map` attribute set accordingly.
     """
 
-    source_map: SourceMap
-    """The source map associated with this string.
+    __slots__ = ("__source_map",)
+    __source_map: SourceMap
 
-    Prefer using {py:func}`source_map` to access this, unless you know for certain that your target
-    string is a `SourceStr`.
-    """
+    @property
+    def source_map(self) -> SourceMap:
+        """The source map associated with this string.
+
+        Prefer using {py:func}`source_map` to access this, unless you know for certain that your
+        target string is a `SourceStr`.
+        """
+        return self.__source_map
 
     # The str builtin is special so we override __new__ instead of __init__
     def __new__(cls, value: str, source_map: SourceMap | None = None):
@@ -56,10 +60,14 @@ class SourceStr(str):
 
         assert len(value) == len(source_map)
 
-        # This is a frozen dataclass (to match str's immutability), so we need to use
-        # __setattr__ to initialize the fields
-        object.__setattr__(new, "source_map", source_map)
+        new.__source_map = source_map
         return new
+
+    def __copy__(self):
+        return self
+
+    def __deepcopy__(self, memo: dict[int, Any]):
+        return self
 
     def __getitem__(self, key: SupportsIndex | slice) -> str:
         """Source tracking slicing.
