@@ -46,7 +46,7 @@ class SourceStr(str):
         return self.__source_map
 
     # The str builtin is special so we override __new__ instead of __init__
-    def __new__(cls, value: str, source_map: SourceMap | None = None):
+    def __new__(cls, value: str, source_map: SourceMap | None = None) -> str:
         """
         :param source_map: The source map to associate with the string. If not given, this actually
             returns a plain <inv:py#str>.
@@ -63,10 +63,10 @@ class SourceStr(str):
         new.__source_map = source_map
         return new
 
-    def __copy__(self):
+    def __copy__(self) -> SourceStr:
         return self
 
-    def __deepcopy__(self, memo: dict[int, Any]):
+    def __deepcopy__(self, memo: dict[int, Any]) -> SourceStr:
         return self
 
     def __getitem__(self, key: SupportsIndex | slice) -> str:
@@ -365,9 +365,8 @@ class SourceSpans:
                 spans.append(span)
                 continue
             last = spans[-1]
+            merge = False
             if last.file == span.file:
-                merge = False
-
                 if line_mode:
                     last_end_line, _ = last.file.text_position(last.file_end)
                     span_start_line, _ = span.file.text_position(span.file_start)
@@ -376,10 +375,12 @@ class SourceSpans:
                 else:
                     merge = last.file_end + max_gap >= span.file_start
 
-                if merge:
-                    spans[-1] = dataclasses.replace(
-                        last, len=max(last.len, span.file_end - last.file_start)
-                    )
+            if merge:
+                spans[-1] = dataclasses.replace(
+                    last, len=max(last.len, span.file_end - last.file_start)
+                )
+            else:
+                spans.append(span)
         return SourceSpans(spans=tuple(spans))
 
     def group_by_file(self) -> dict[SourceFile, SourceSpans]:
@@ -393,7 +394,7 @@ class SourceSpans:
         """Concatenates two collections of source spans."""
         return SourceSpans(spans=self.spans + other.spans)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self.spans)
 
 
@@ -417,22 +418,30 @@ class SourceMap(SourceSpans):
     """
 
     def __getitem__(self, key: SupportsIndex | slice) -> SourceMap | None:
-        if isinstance(key, slice) and (key.step is None or key.step == 1):
-            start = self._index(key.start, 0)
-            end = self._index(key.stop, None)
-            return self._for_subslice(start, end)
+        if isinstance(key, slice):
+            if key.step is None or key.step == 1:
+                start = self._index(key.start, 0)
+                end = self._index(key.stop, None)
+                return self._for_subslice(start, end)
+            else:
+                raise IndexError("SourceMap only supports slicing with the default step of 1.")
         else:
-            raise IndexError("SourceMap only supports slicing with the default step of 1.")
+            index = self._index(key.__index__(), None)
+            return self._for_subslice(index, index + 1)
 
     def __len__(self) -> int:
         return self.len
+
+    @typing.overload
+    def _index(self, index: int, default: int | None) -> int:
+        ...
 
     @typing.overload
     def _index(self, index: int | None, default: int) -> int:
         ...
 
     @typing.overload
-    def _index(self, index: int | None, default: None) -> None:
+    def _index(self, index: int | None, default: None) -> int | None:
         ...
 
     def _index(self, index: int | None, default: int | None) -> int | None:

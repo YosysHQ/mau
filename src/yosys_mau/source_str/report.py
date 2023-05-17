@@ -51,6 +51,7 @@ class Report:
     def __str__(self) -> str:
         out = [f"\nError: {self.message}\n"]
 
+        print("uhuh", self.spans.close_gaps())
         for file, spans in self.spans.close_gaps().group_by_file().items():
             if file.content is None:
                 raise NotImplementedError
@@ -68,14 +69,23 @@ class Report:
 
             out.append(f"{file}:\n")
 
-            for span in line_spans.spans:
+            max_line = max(file.text_position(span.file_end)[0] for span in line_spans.spans) + 1
+            max_line = min(len(file.newlines) + 1, max_line)
+            line_digits = max(len(str(max_line)), 2)
+
+            for chunk_index, span in enumerate(line_spans.spans):
                 start_line, _ = file.text_position(span.file_start)
                 end_line, _ = file.text_position(span.file_end)
 
-                line_digits = max(len(str(end_line + 1)), 2)
+                context_start_line = max(1, start_line - 1)
+                context_end_line = min(len(file.newlines) + 1, end_line + 1)
+
+                if chunk_index > 0:
+                    out.append(f"{' ':{line_digits}} :\n")
 
                 for line_nr, line in enumerate(
-                    file.text_lines(start_line - 1, end_line + 1).splitlines(), start_line - 1
+                    file.text_lines(context_start_line, context_end_line).splitlines(),
+                    context_start_line,
                 ):
                     out.append(f"{line_nr:{line_digits}} | {line}\n")
                     if line_nr in highlights:

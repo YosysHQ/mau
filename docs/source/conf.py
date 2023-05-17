@@ -88,10 +88,32 @@ def setup(app):
 # -- docstring processing ----------------------------------------------------
 
 
+# def field_doc_helper(x: T) -> T:
+#     first, *rest = getattr(x, "__doc__", "").split("\n", 1)
+#     doc = first + "".join(map(textwrap.dedent, rest))
+
+#     for name, value in getattr(x, "__field_doc__", {}).items():
+#         doc += f"\n\n:::{{autodoc}} attribute {name}\n{textwrap.dedent(value)}\n:::\n"
+
+#     x.__doc__ = doc
+#     return x
+
+
 def process_docstring(app, what, name, obj, options, lines):
+    import textwrap
     # For modules, remove everything before the first empty line
     if what == "module":
         try:
             lines[: lines.index("")] = []
         except ValueError:
             pass
+
+    if hasattr(obj, "__field_doc__"):
+        for name, value in obj.__field_doc__.items():
+            lines.extend(
+                [
+                    f":::{{autodoc}} attribute {name}",
+                    *textwrap.dedent(value).splitlines(),
+                    ":::",
+                ]
+            )
