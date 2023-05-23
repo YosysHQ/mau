@@ -1,8 +1,8 @@
 """Diagnostic reporting using source tracking strings.
 
-:::{warning}
+.. warning::
   The API for error reporting hasn't been fully designed yet and is likely to change.
-:::
+
 """
 from __future__ import annotations
 
@@ -12,14 +12,14 @@ from dataclasses import dataclass
 from .. import source_str
 
 
-@dataclass(frozen=True)
+@dataclass
 class InputError(Exception):
     """An error in user input.
 
-    :::{note}
+    .. note::
       The API for error reporting hasn't been fully designed yet and is likely to change. Something
       simple to raise one-off errors like this will certainly stay though.
-    :::
+
     """
 
     where: str | None
@@ -32,16 +32,20 @@ class InputError(Exception):
         report = Report(source_map.detached(), self.message)
         return str(report)
 
+    def fallback_span(self, where_else: str):
+        if not source_str.source_map(self.where or ""):
+            self.where = where_else
+
 
 @dataclass(eq=False)
 class Report:
     """Collects diagnostic information associated to specific source locations.
 
-    :::{warning}
+    .. warning::
       The API for error reporting hasn't been fully designed yet and is likely to change. This class
       in particular will undergo backwards incompatible API changes and should be considered
       internal to this library for now.
-    :::
+
     """
 
     spans: source_str.SourceSpans

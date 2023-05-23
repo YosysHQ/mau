@@ -2,6 +2,7 @@
 exclude_lines =
     \# pragma: no cover
     ^\s+\.\.\.\s*(#.*)?$
+    if typing\.TYPE_CHECKING:
 
 omit =
     src/yosys_mau/myst_docstr.py

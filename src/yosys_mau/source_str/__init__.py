@@ -1,6 +1,6 @@
-"""Strings With Source Tracking
-
-This module provides a string type {py:func}`SourceStr` which remembers the source it originates
+# Strings With Source Tracking
+"""
+This module provides a string type :func:`SourceStr` which remembers the source it originates
 from.
 """
 # pyright: reportPrivateUsage = false
@@ -27,10 +27,10 @@ _RE_WHITESPACE = stdlib_re.compile(r"\s+")
 class SourceStr(str):
     """String type which remembers the source it originates from.
 
-    A {py:class}`SourceStr` inherits from <inv:py#str> but has an additional attribute `source_map`
+    A `SourceStr` inherits from :external:class:`str` but has an additional attribute ``source_map``
     to track the string's origin. When a `SourceStr` operation returns a new string, e.g. when you
     slice or concatenate strings, the resulting string will often be a `SourceStr` with the
-    `source_map` attribute set accordingly.
+    ``source_map`` attribute set accordingly.
     """
 
     __slots__ = ("__source_map",)
@@ -40,8 +40,8 @@ class SourceStr(str):
     def source_map(self) -> SourceMap:
         """The source map associated with this string.
 
-        Prefer using {py:func}`source_map` to access this, unless you know for certain that your
-        target string is a `SourceStr`.
+        Prefer using :func:`source_map` to access this, unless you know for certain that your target
+        string is a `SourceStr`.
         """
         return self.__source_map
 
@@ -49,7 +49,7 @@ class SourceStr(str):
     def __new__(cls, value: str, source_map: SourceMap | None = None) -> str:
         """
         :param source_map: The source map to associate with the string. If not given, this actually
-            returns a plain <inv:py#str>.
+            returns a plain :external:class:`str`.
 
         """
         if source_map is None or not source_map.spans or not value:
@@ -72,8 +72,8 @@ class SourceStr(str):
     def __getitem__(self, key: SupportsIndex | slice) -> str:
         """Source tracking slicing.
 
-        Not all slicing operations are source tracking, but `[start:stop]`, `[start:]`, `[:stop]`
-        and `[:]` are.
+        Not all slicing operations are source tracking, but ``[start:stop]``, ``[start:]``,
+        ``[:stop]`` and ``[:]`` are.
         """
         return SourceStr(super().__getitem__(key), self.source_map[key])
 
@@ -88,7 +88,7 @@ class SourceStr(str):
         return self
 
     def splitlines(self, keepends: bool = False) -> list[str]:
-        """Source tracking implementation of <inv:py#str.splitlines>."""
+        """Source tracking implementation of :external:meth:`str.splitlines`."""
         result: list[str] = []
         pos = 0
         for match in _RE_SPLITLINES.finditer(self):
@@ -99,7 +99,7 @@ class SourceStr(str):
         return result
 
     def split(self, sep: str | None = None, maxsplit: SupportsIndex = -1) -> list[str]:
-        """Source tracking implementation of <inv:py#str.split>."""
+        """Source tracking implementation of :external:meth:`str.split`."""
         maxsplit = maxsplit.__index__()
         if maxsplit == 0:
             if sep is None:
@@ -137,7 +137,7 @@ class SourceStr(str):
         return result
 
     def strip(self, chars: str | None = None) -> str:
-        """Source tracking implementation of <inv:py#str.strip>."""
+        """Source tracking implementation of :external:meth:`str.strip`."""
         chars_re = f"[{stdlib_re.escape(chars)}]" if chars is not None else r"\s"
 
         if rmatch := stdlib_re.search(f"{chars_re}+$", self):
@@ -148,7 +148,7 @@ class SourceStr(str):
             return self.lstrip(chars)
 
     def rstrip(self, chars: str | None = None) -> str:
-        """Source tracking implementation of <inv:py#str.rstrip>."""
+        """Source tracking implementation of :external:meth:`str.rstrip`."""
         chars_re = f"[{stdlib_re.escape(chars)}]" if chars is not None else r"\s"
         if match := stdlib_re.search(f"{chars_re}+$", self):
             return self[: match.start()]
@@ -156,7 +156,7 @@ class SourceStr(str):
             return self
 
     def lstrip(self, chars: str | None = None) -> str:
-        """Source tracking implementation of <inv:py#str.lstrip>."""
+        """Source tracking implementation of :external:meth:`str.lstrip`."""
         chars_re = f"[{stdlib_re.escape(chars)}]" if chars is not None else r"\s"
         if match := stdlib_re.match(f"{chars_re}+", self):
             return self[match.end() :]
@@ -164,21 +164,19 @@ class SourceStr(str):
             return self
 
     def replace(self, old: str, new: str, count: SupportsIndex = -1) -> str:
-        """Source tracking implementation of <inv:py#str.replace>."""
+        """Source tracking implementation of :external:meth:`str.replace`."""
         if not old:
             raise ValueError("empty old string")
 
         return SourceStr.join(new, self.split(old, count))
 
     def join(self: str, iterable: Iterable[str]) -> str:
-        """Source tracking implementation of <inv:py#str.join>.
+        """Source tracking implementation of :external:meth:`str.join`.
 
-        :::{note}
-          When using join, `self` often isn't a {py:class}`SourceStr` even when the arguments are.
-          Since we can only override methods according to the receiver `self`, to ensure source
-          tracking, this has to be invoked as `SourceStr.join(self, iterable)`.
-        :::
-
+        .. note::
+           When using join, ``self`` often isn't a `SourceStr` even when the arguments are.
+           Since we can only override methods according to the receiver ``self``, to ensure source
+           tracking, this has to be invoked as ``SourceStr.join(self, iterable)``.
         """
 
         def inject_sep(iterable: Iterable[str]) -> Iterable[str]:
@@ -197,7 +195,7 @@ class SourceStr(str):
 def concat(strings: Iterable[str]) -> str:
     """Source tracking concatenation of multiple strings.
 
-    This is an alternative to `"".join(strings)` that preserves source tracking information.
+    This is an alternative to ``"".join(strings)`` that preserves source tracking information.
     """
 
     strings = list(strings)
@@ -228,7 +226,7 @@ def read_file(
     store_content: bool | None = None,
     relative_to: PathLike[Any] | str | None = None,
 ) -> str:
-    """Read a file into a {py:class}`SourceStr` that track's its source.
+    """Read a file into a `SourceStr` that track's its source.
 
     :param path: The path to the file to read.
 
@@ -239,7 +237,7 @@ def read_file(
     :param relative_to: The path to resolve relative paths against. If not given, the current
         working directory is used.
 
-    :returns: A {py:class}`SourceStr` that tracks the file's source.
+    :returns: A `SourceStr` that tracks the file's source.
     """
     user_path, absolute_path = _resolve_path(path, relative_to)
 
@@ -271,7 +269,7 @@ def from_content(
     :param relative_to: The path to resolve relative paths against. If not given, the current
         working directory is used.
 
-    :returns: A {py:class}`SourceStr` that tracks the file's source.
+    :returns: A `SourceStr` that tracks the file's source.
     """
     user_path, absolute_path = _resolve_path(path, relative_to)
 
@@ -354,7 +352,7 @@ class SourceSpans:
         """Sorts contained spans and merges almost adjacent spans.
 
         :param max_gap: The maximum gap between two spans that will be merged.
-        :returns: A new {py:class}`SourceSpans` with sorted and merged spans.
+        :returns: A new `SourceSpans` with sorted and merged spans.
         """
         spans: list[SourceSpan] = []
         file_order: dict[SourceFile, int] = {}
@@ -486,7 +484,7 @@ class SourceMap(SourceSpans):
     def _bisect_ending_at(self, at: int | None) -> int:
         """Index after the last span that overlaps a subslice.
 
-        :param at: The end of the subslice or `None` if it extends to the end of the string.
+        :param at: The end of the subslice or ``None`` if it extends to the end of the string.
         :returns: The index of the last span that overlaps the subslice.
         """
         # FUTURE Python 3.10 use bisect.bisect_left with the new key parameter
@@ -717,7 +715,7 @@ class SourceMapSpan(SourceSpan):
     def _for_subslice_unchecked(self, start: int, end: int | None) -> SourceMapSpan:
         """Part of the span that overlaps a given subslice of the string.
 
-        This assumes that the span overlaps the subslice, use {py:meth}`_for_subslice` if that is
+        This assumes that the span overlaps the subslice, use `_for_subslice` if that is
         not guaranteed.
 
         :param start: Start of the subslice.

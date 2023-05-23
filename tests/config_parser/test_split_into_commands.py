@@ -19,9 +19,9 @@ def test_simple():
 
     commands = list(config_parser.split_into_commands(test_input))
     assert commands == [
-        ConfigCommand(name="no_argument", arguments=""),
-        ConfigCommand(name="single_argument", arguments="on"),
-        ConfigCommand(name="multiple_arguments", arguments="1 2 3"),
+        ConfigCommand(index=0, name="no_argument", arguments=""),
+        ConfigCommand(index=1, name="single_argument", arguments="on"),
+        ConfigCommand(index=2, name="multiple_arguments", arguments="1 2 3"),
     ]
     assert commands[0].arg_list == []
     assert commands[1].arg_list == ["on"]
@@ -40,9 +40,9 @@ def test_comments():
 
     commands = list(config_parser.split_into_commands(test_input))
     assert commands == [
-        ConfigCommand(name="no_argument", arguments=""),
-        ConfigCommand(name="single_argument", arguments="on"),
-        ConfigCommand(name="multiple_arguments", arguments="1 2 3"),
+        ConfigCommand(index=0, name="no_argument", arguments=""),
+        ConfigCommand(index=1, name="single_argument", arguments="on"),
+        ConfigCommand(index=2, name="multiple_arguments", arguments="1 2 3"),
     ]
     assert commands[0].arg_list == []
     assert commands[1].arg_list == ["on"]
@@ -68,9 +68,9 @@ def test_extra_whitespace():
 
     commands = list(config_parser.split_into_commands(test_input))
     assert commands == [
-        ConfigCommand(name="no_argument", arguments=""),
-        ConfigCommand(name="single_argument", arguments="on"),
-        ConfigCommand(name="multiple_arguments", arguments="1  2  3"),
+        ConfigCommand(index=0, name="no_argument", arguments=""),
+        ConfigCommand(index=1, name="single_argument", arguments="on"),
+        ConfigCommand(index=2, name="multiple_arguments", arguments="1  2  3"),
     ]
     assert commands[0].arg_list == []
     assert commands[1].arg_list == ["on"]

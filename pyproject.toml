@@ -3,12 +3,13 @@ name = "yosys_mau"
 version = "0.0.1"
 description = "Modular application utilities for Yosys frontends"
 
+dependencies = ["typing-extensions"]
+
 [project.optional-dependencies]
 dev = [
     # Documentation
     "sphinx",
     "furo",
-    "myst_parser",
 
     # Testing
     "pytest",
@@ -39,6 +40,7 @@ fixable = [
     "I",    # Import order
     "F401", # Imported but unused
 ]
+ignore = ["E731"]
 
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib"]

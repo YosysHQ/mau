@@ -3,6 +3,8 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import sphinx.application
+
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
@@ -18,12 +20,11 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.todo",
     "sphinx.ext.intersphinx",
-    "myst_parser",
-    "yosys_mau.myst_docstr",
 ]
 
 templates_path = ["_templates"]
 exclude_patterns = []
+default_role = "any"
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
@@ -62,10 +63,6 @@ autodoc_typehints = "description"
 autoclass_content = "both"
 autodoc_member_order = "bysource"
 
-# -- Options for myst --------------------------------------------------------
-
-myst_enable_extensions = ["colon_fence", "fieldlist"]
-
 # -- Options for intersphinx -------------------------------------------------
 
 intersphinx_mapping = {
@@ -81,39 +78,63 @@ todo_link_only = True
 # -- setup -------------------------------------------------------------------
 
 
-def setup(app):
-    app.connect("autodoc-process-docstring", process_docstring, priority=1)
+def setup(app: sphinx.application.Sphinx):
+    import re
+    from pathlib import Path
 
+    from docutils import utils
+    from docutils.parsers.rst import Directive, directives
 
-# -- docstring processing ----------------------------------------------------
+    class ReadmeInclude(Directive):
+        required_arguments = 1
+        optional_arguments = 0
+        final_argument_whitespace = True
+        has_content = False
+        option_spec = {
+            "start-after": directives.unchanged,
+            "end-before": directives.unchanged,
+        }
 
+        def run(self):
+            path = directives.path(self.arguments[0])
+            full_path = Path(self.state.document.current_source).parent / path
+            document = utils.new_document(path, self.state.document.settings)
+            parser = directives.parser_name("rst")()
+            with full_path.open() as file:
+                content = file.read()
 
-# def field_doc_helper(x: T) -> T:
-#     first, *rest = getattr(x, "__doc__", "").split("\n", 1)
-#     doc = first + "".join(map(textwrap.dedent, rest))
+            start_after = self.options.get("start-after", "")
+            end_before = self.options.get("end-before", "")
 
-#     for name, value in getattr(x, "__field_doc__", {}).items():
-#         doc += f"\n\n:::{{autodoc}} attribute {name}\n{textwrap.dedent(value)}\n:::\n"
+            if start_after and start_after in content:
+                content = content.split(start_after, 1)[1]
+            if end_before and end_before in content:
+                content = content.split(end_before, 1)[0]
 
-#     x.__doc__ = doc
-#     return x
-
-
-def process_docstring(app, what, name, obj, options, lines):
-    import textwrap
-    # For modules, remove everything before the first empty line
-    if what == "module":
-        try:
-            lines[: lines.index("")] = []
-        except ValueError:
-            pass
-
-    if hasattr(obj, "__field_doc__"):
-        for name, value in obj.__field_doc__.items():
-            lines.extend(
-                [
-                    f":::{{autodoc}} attribute {name}",
-                    *textwrap.dedent(value).splitlines(),
-                    ":::",
-                ]
+            content = re.sub(
+                r"^# (.*)$",
+                lambda match: f"{match[1]}\n{'=' * len(match[1])}",
+                content,
+                flags=re.MULTILINE,
             )
+
+            content = re.sub(
+                r"^## (.*)$",
+                lambda match: f"{match[1]}\n{'-' * len(match[1])}",
+                content,
+                flags=re.MULTILINE,
+            )
+
+            content = re.sub(
+                r"(^    .*$\n?)+",
+                lambda match: f".. code::\n\n{match[0]}",
+                content,
+                flags=re.MULTILINE,
+            )
+
+            parser.parse(content, document)
+            document.transformer.populate_from_components((parser,))
+            document.transformer.apply_transforms()
+            return document.children
+
+    app.add_directive("readme-include", ReadmeInclude)

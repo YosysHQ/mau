@@ -1,15 +1,11 @@
 # Modular Application Utilities
 
-<!-- start include -->
-
 `mau` is a modular python library containing utilities for building
 front-end applications as part of the Yosys ecosystem. The goal is to avoid
 duplicating similar functionality in different front-end tools, by providing a
 common high-quality implementation.
 
 This is currently an early work in progress.
-
-<!-- break -->
 
 ## Development Setup
 

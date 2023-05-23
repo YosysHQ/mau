@@ -12,6 +12,7 @@ __all__ = [
     "ConfigCommand",
 ]
 
+
 @dataclass(frozen=True)
 class ConfigSection:
     """A single section within a config file."""
@@ -22,16 +23,16 @@ class ConfigSection:
     name: str
     """Name of the section.
 
-    The `name` part in a section header `[name]` or `[name arguments]`.
+    The ``name`` part in a section header of the form ``[name]`` or ``[name arguments]``.
 
-    For the initial content of a config file that precedes the first section, the name is `""`. For
-    proper sections, the name must be non-empty.
+    For the initial content of a config file that precedes the first section, the name is ``""``.
+    For proper sections, the name must be non-empty.
     """
 
     arguments: str
     """Arguments of the section.
 
-    The `arguments` part in a section header `[name]` or `[name arguments]`.
+    The ``arguments`` part in a section ``[name arguments]`` or the empty string if not present.
 
     Can contain spaces.
     """
@@ -46,7 +47,7 @@ class ConfigSection:
     header: str = field(compare=False)
     """The section header.
 
-    A section header looks like `[name]` or `[name arguments]` and includes the `[` and `]`
+    A section header looks like ``[name]`` or ``[name arguments]`` and includes the ``[`` and ``]``
     characters.
     """
 
@@ -63,10 +64,11 @@ class ConfigSection:
             raise report.InputError(self.header, f"missing arguments for section `{self.name}`")
 
 
-@dataclass
+@dataclass(frozen=True)
 class ConfigCommand:
     """A single command or option within a config file."""
 
+    index: int
     name: str
     arguments: str
 
@@ -172,6 +174,7 @@ def split_into_commands(contents: str) -> Iterable[ConfigCommand]:
     """Split the contents of a section into individual commands."""
 
     pos = 0
+    index = 0
 
     while pos < len(contents):
         match = _COMMAND_RE.match(contents, pos)
@@ -186,6 +189,8 @@ def split_into_commands(contents: str) -> Iterable[ConfigCommand]:
             break
         pos = match.end()
         yield ConfigCommand(
+            index=index,
             name=name,
             arguments=(match["arguments"] or ""),
         )
+        index += 1

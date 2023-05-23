@@ -7,10 +7,9 @@ from yosys_mau import source_str
 from yosys_mau.config_parser import (
     ConfigParser,
     ConfigSection,
-    file_section,
+    RawSection,
+    StrSection,
     postprocess_section,
-    raw_section,
-    str_section,
 )
 from yosys_mau.source_str.report import InputError
 
@@ -25,7 +24,7 @@ def test_single_str_section():
     test_input = source_str.from_content(dedent(test_input), "test_input.sby")
 
     class ExampleConfig(ConfigParser):
-        script = str_section(required=True)
+        script = StrSection()
 
     config = ExampleConfig(test_input)
     assert config.script == "cat meow.txt\n"
@@ -41,8 +40,8 @@ def test_two_different_str_section():
     test_input = source_str.from_content(dedent(test_input), "test_input.sby")
 
     class ExampleConfig(ConfigParser):
-        script = str_section(required=True)
-        misc = str_section(default="?\n")
+        script = StrSection()
+        misc = StrSection(default="?\n")
 
     config = ExampleConfig(test_input)
     assert config.script == "cat meow.txt\n"
@@ -57,8 +56,8 @@ def test_missing_default_str_section():
     test_input = source_str.from_content(dedent(test_input), "test_input.sby")
 
     class ExampleConfig(ConfigParser):
-        script = str_section(required=True)
-        misc = str_section(default="?\n")
+        script = StrSection()
+        misc = StrSection(default="?\n")
 
     config = ExampleConfig(test_input)
     assert config.script == "cat meow.txt\n"
@@ -73,8 +72,8 @@ def test_missing_required_str_section():
     test_input = source_str.from_content(dedent(test_input), "test_input.sby")
 
     class ExampleConfig(ConfigParser):
-        script = str_section(required=True)
-        misc = str_section(default="?\n")
+        script = StrSection()
+        misc = StrSection(default="?\n")
 
     with pytest.raises(InputError, match=r"missing section"):
         ExampleConfig(test_input)
@@ -91,8 +90,8 @@ def test_unknown_section():
     test_input = source_str.from_content(dedent(test_input), "test_input.sby")
 
     class ExampleConfig(ConfigParser):
-        script = str_section(required=True)
-        misc = str_section(default="?\n")
+        script = StrSection()
+        misc = StrSection(default="?\n")
 
     with pytest.raises(InputError, match=r"unknown section"):
         ExampleConfig(test_input)
@@ -110,8 +109,8 @@ def test_duplicate_str_section():
     test_input = source_str.from_content(dedent(test_input), "test_input.sby")
 
     class ExampleConfig(ConfigParser):
-        script = str_section(required=True)
-        misc = str_section(default="?\n")
+        script = StrSection()
+        misc = StrSection(default="?\n")
 
     with pytest.raises(InputError, match=r"defined multiple times"):
         ExampleConfig(test_input)
@@ -129,8 +128,8 @@ def test_concat_str_section():
     test_input = source_str.from_content(dedent(test_input), "test_input.sby")
 
     class ExampleConfig(ConfigParser):
-        script = str_section(required=True, concat=True)
-        misc = str_section(default="?\n")
+        script = StrSection(default=None, concat=True)
+        misc = StrSection(default="?\n")
 
     config = ExampleConfig(test_input)
     assert config.script == "cat meow.txt\nyes meow\n"
@@ -147,8 +146,8 @@ def test_file_section_single():
     test_input = source_str.from_content(dedent(test_input), "test_input.sby")
 
     class ExampleConfig(ConfigParser):
-        script = str_section(required=True)
-        file = file_section()
+        script = StrSection()
+        file = StrSection().with_arguments()
 
     config = ExampleConfig(test_input)
     assert config.script == "cat meow.txt\n"
@@ -167,8 +166,8 @@ def test_file_section_multiple():
     test_input = source_str.from_content(dedent(test_input), "test_input.sby")
 
     class ExampleConfig(ConfigParser):
-        script = str_section(required=True)
-        file = file_section()
+        script = StrSection()
+        file = StrSection().with_arguments()
 
     config = ExampleConfig(test_input)
     assert config.script == "cat meow.txt\n"
@@ -189,8 +188,8 @@ def test_file_section_duplicate():
     test_input = source_str.from_content(dedent(test_input), "test_input.sby")
 
     class ExampleConfig(ConfigParser):
-        script = str_section(required=True)
-        file = file_section()
+        script = StrSection()
+        file = StrSection().with_arguments()
 
     with pytest.raises(InputError, match=r"defined multiple times"):
         ExampleConfig(test_input)
@@ -210,8 +209,8 @@ def test_file_section_concat():
     test_input = source_str.from_content(dedent(test_input), "test_input.sby")
 
     class ExampleConfig(ConfigParser):
-        script = str_section(required=True)
-        file = file_section(concat=True)
+        script = StrSection()
+        file = StrSection(concat=True).with_arguments()
 
     config = ExampleConfig(test_input)
     assert config.script == "cat meow.txt\n"
@@ -232,8 +231,8 @@ def test_raw_section_fallback():
     test_input = source_str.from_content(dedent(test_input), "test_input.sby")
 
     class ExampleConfig(ConfigParser):
-        script = str_section(required=True)
-        fallback = raw_section(section_name=False)
+        script = StrSection()
+        fallback = RawSection(all_sections=True)
 
     config = ExampleConfig(test_input)
     assert config.script == "cat meow.txt\n"
@@ -261,12 +260,28 @@ def test_postprocess_section():
     test_input = source_str.from_content(dedent(test_input), "test_input.sby")
 
     class ExampleConfig(ConfigParser):
-        @postprocess_section(str_section(required=True))
+        @postprocess_section(StrSection())
         def script(self, script: str) -> list[str]:
             return script.splitlines()
 
-        file = file_section()
+        file = StrSection().with_arguments()
 
     config = ExampleConfig(test_input)
     assert config.script == ["cat meow.txt", "yes meow"]
     assert config.file == {"meow.txt": "meow!\n", "numbers.txt": "1, 2, 3\n"}
+
+
+def test_assign_result():
+    test_input = """\
+        [script]
+        cat meow.txt
+    """
+    test_input = source_str.from_content(dedent(test_input), "test_input.sby")
+
+    class ExampleConfig(ConfigParser):
+        script = StrSection()
+
+    config = ExampleConfig(test_input)
+    assert config.script == "cat meow.txt\n"
+    config.script = "python meow.py\n"
+    assert config.script == "python meow.py\n"
