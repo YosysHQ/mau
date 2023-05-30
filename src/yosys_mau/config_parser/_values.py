@@ -84,3 +84,24 @@ class BoolValue(ValueParser[bool]):
             return False
         else:
             raise report.InputError(input, "expected `on` or `off`")
+
+
+class EnumValue(ValueParser[str]):
+    """A parser for a fixed set of values."""
+
+    def __init__(self, *values: str) -> None:
+        """
+        :param values: The allowed values.
+        """
+        self.__values = {value: True for value in values}
+
+    def parse(self, input: str) -> str:
+        """Parse a value."""
+        if input not in self.__values:
+            alternatives = [f"`{value}`" for value in self.__values]
+            if len(alternatives) > 1:
+                last = alternatives.pop()
+                alternatives[-1] += f" or {last}"
+
+            raise report.InputError(input, f"expected one of {', '.join(alternatives)}")
+        return input

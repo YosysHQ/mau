@@ -27,6 +27,7 @@ from ._sections import (
 )
 from ._values import (
     BoolValue,
+    EnumValue,
     IntValue,
     StrValue,
     ValueParser,
@@ -58,6 +59,7 @@ __all__ = [
     "IntValue",
     "StrValue",
     "BoolValue",
+    "EnumValue",
     # from ._commands
     "ConfigCommands",
     "CommandsSection",
