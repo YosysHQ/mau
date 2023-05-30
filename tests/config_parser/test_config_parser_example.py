@@ -1,17 +1,17 @@
 from __future__ import annotations
 
+from textwrap import dedent
+
 
 def test_example():
     # example begin
-    from textwrap import dedent
-
     import yosys_mau.config_parser as cfg
     from yosys_mau import source_str
     from yosys_mau.source_str import report
 
     class Options(cfg.ConfigOptions):
         mode = cfg.Option(cfg.EnumValue("bmc", "prove"))
-        depth = cfg.Option(cfg.IntValue(min=0), default=1)
+        depth = cfg.Option(cfg.IntValue(min=0), default=20)
         multiclock = cfg.Option(cfg.BoolValue(), default=False)
 
     class Engines(cfg.ConfigCommands):
@@ -43,7 +43,7 @@ def test_example():
         script = cfg.StrSection()
         options = cfg.OptionsSection(Options)
         engines = cfg.CommandsSection(Engines, required=True)
-    # example end
+        # example end
 
     example_input = """\
         [options]
