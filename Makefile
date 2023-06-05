@@ -48,7 +48,7 @@ test:
 	$(PYTHON) -m pytest \
 		--cov-report html --cov-report term \
 		--cov yosys_mau \
-		-n auto $(O)
+		-n auto -q $(O)
 
 formatting:
 	$(PYTHON) -m black --check --diff src tests $(O)
