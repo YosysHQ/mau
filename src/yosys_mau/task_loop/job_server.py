@@ -119,6 +119,21 @@ class Lease:
         if self._future is not None and not self._future.done():
             self._future.set_result(None)
 
+    @property
+    def ready(self) -> bool:
+        return self._is_ready
+
+    @property
+    def done(self) -> bool:
+        return self._is_done
+
+    def add_ready_callback(self, callback: typing.Callable[[], None]) -> None:
+        if self._is_ready:
+            callback()
+        if self._future is None:
+            self._future = asyncio.Future()
+            self._future.add_done_callback(lambda _: callback())
+
 
 class Server:
     job_count: int
@@ -374,3 +389,13 @@ class Client:
             return self._job_server.subprocess_args()
         else:
             return dict(pass_fds=inherited_job_server_pass_fds)
+
+
+_global_client_instance: Client | None = None
+
+
+def global_client(fallback_job_count: int | None = None) -> Client:
+    global _global_client_instance
+    if _global_client_instance is None:
+        _global_client_instance = Client(fallback_job_count)
+    return _global_client_instance
