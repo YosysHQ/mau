@@ -2,7 +2,9 @@ import os
 import signal
 import sys
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
+    # exiting via SIGHUP or os.execl breaks coverage collection, so we ignore this for coverage
+
     # First move to a new process group with this process as leader. If a subprocess explicitly
     # changes the process group without reliably handling process cleanup there is little we can do
     # about it.

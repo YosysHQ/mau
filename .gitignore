@@ -32,6 +32,7 @@ MANIFEST
 /htmlcov
 /.hypothesis
 /.coverage
+/.coverage.*
 
 # user makefile config
 /Makefile.conf

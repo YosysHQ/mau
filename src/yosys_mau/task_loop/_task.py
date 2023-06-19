@@ -47,10 +47,7 @@ def current_task() -> Task:
 
 
 def root_task() -> RootTask:
-    root_task = task_loop().root_task
-    if root_task is None:
-        raise TaskLoopError("the task loop is not running")
-    return root_task
+    return task_loop().root_task
 
 
 def background(fn: Callable[[], Awaitable[None]], *, wait: bool = False) -> None:
@@ -87,21 +84,10 @@ def task_loop() -> TaskLoop:
 
 
 class TaskLoop:
-    root_task: RootTask | None
+    root_task: RootTask
     task_eq_ids: Iterator[int]
 
-    def __init__(self) -> None:
-        self.root_task = None
-        self.task_eq_ids = count()
-
-    def cancel(self) -> None:
-        if self.root_task:
-            self.root_task.cancel()
-
-    def _handle_sigint(self) -> None:
-        self.cancel()
-
-    def run(
+    def __init__(
         self,
         inner: Callable[[], None | Awaitable[None]],
         *,
@@ -117,7 +103,7 @@ class TaskLoop:
                 asyncio.get_event_loop().add_signal_handler(signal.SIGINT, self._handle_sigint)
             job.global_client()  # early setup of the job server client
 
-            self.root_task = RootTask(on_run=inner)
+            RootTask(on_run=inner)
             self.root_task.name = "root"
 
             await self.root_task.finished
@@ -131,6 +117,13 @@ class TaskLoop:
             asyncio.run(wrapper())
         finally:
             global_task_loop = None
+
+    def cancel(self) -> None:
+        if self.root_task:
+            self.root_task.cancel()
+
+    def _handle_sigint(self) -> None:
+        self.cancel()
 
 
 class Task:
@@ -262,7 +255,7 @@ class Task:
         if isinstance(self, RootTask):
             self.__parent = None
             loop = task_loop()
-            assert loop.root_task is None
+            assert not hasattr(loop, "root_task")
             task_loop().root_task = self
         else:
             self.__parent = current_task()
