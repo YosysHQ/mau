@@ -140,7 +140,7 @@ class SourceStr(str):
         """Source tracking implementation of :external:meth:`str.strip`."""
         chars_re = f"[{stdlib_re.escape(chars)}]" if chars is not None else r"\s"
 
-        if rmatch := stdlib_re.search(f"{chars_re}+$", self):
+        if rmatch := stdlib_re.search(rf"{chars_re}+\Z", self):
             if lmatch := stdlib_re.match(f"{chars_re}+", self):
                 return self[lmatch.end() : rmatch.start()]
             return self[: rmatch.start()]
@@ -150,7 +150,7 @@ class SourceStr(str):
     def rstrip(self, chars: str | None = None) -> str:
         """Source tracking implementation of :external:meth:`str.rstrip`."""
         chars_re = f"[{stdlib_re.escape(chars)}]" if chars is not None else r"\s"
-        if match := stdlib_re.search(f"{chars_re}+$", self):
+        if match := stdlib_re.search(rf"{chars_re}+\Z", self):
             return self[: match.start()]
         else:
             return self
