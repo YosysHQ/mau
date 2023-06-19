@@ -25,7 +25,12 @@ dev = [
     "ruff",
 
     # Type checking
-    "pyright",
+    "pyright==1.1.311",
+    # jix: When using Python 3.8, newer versions of pyright report spurious
+    # errors. With Python 3.11 and newer pyright, those are not reported, and I
+    # think the code is fine, but I haven't figured out if this corresponds to
+    # any known issues in pyright nor have I produced a minimal reproducer.
+
     "types-docutils",
 ]
 
