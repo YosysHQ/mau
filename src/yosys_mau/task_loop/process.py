@@ -63,8 +63,6 @@ class ProcessTask(Task):
             repr_dict = dict(subprocess_args)
             repr_dict.pop("env", None)
 
-            print(repr(repr_dict))
-
         # TODO check what to do on Windows to ensure that we can terminate the whole process tree
 
         self.__proc = await asyncio.create_subprocess_exec(
