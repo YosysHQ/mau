@@ -14,6 +14,7 @@ Documentation Contents
    :maxdepth: 2
 
    readme
+   task_loop/index
    config_parser/index
    source_str
    modindex
