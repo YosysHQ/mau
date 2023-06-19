@@ -1,0 +1,31 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-20.04 # Ubuntu 20.04 LTS ships with the Python version we're currently targeting
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Upgrade pip
+        run: python3 -m pip install --upgrade pip
+      - name: Setup development environment
+        run: make dev-install
+      - name: Run tests
+        run: make test
+
+  check:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Upgrade pip
+        run: python3 -m pip install --upgrade pip
+      - name: Setup development environment
+        run: make dev-install
+      - name: Check formatting (use `make reformat` on error)
+        run: make formatting
+      - name: Run linter (try `make fix` on error)
+        run: make lint
+      - name: Check types
+        run: make typecheck
