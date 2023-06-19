@@ -95,22 +95,26 @@ class ProcessTask(Task):
 
         returncode = await self.__proc.wait()
         self.__proc = None
+        self.__cleanup()
 
         ExitEvent(returncode).emit()
 
         self.on_exit(returncode)
 
-    def on_cancel(self) -> None:
+    def __cleanup(self) -> None:
         if self.__monitor_pipe:
-            for fd in self.__monitor_pipe:
-                os.close(fd)
-            self.__monitor_pipe = None
-
-        if self.__proc is not None:
+            if self.__monitor_pipe:
+                for fd in self.__monitor_pipe:
+                    os.close(fd)
+                self.__monitor_pipe = None
+        elif self.__proc is not None:
             self.__proc.terminate()
 
+    def on_cancel(self) -> None:
+        self.__cleanup()
+
     def on_cleanup(self):
-        self.on_cancel()
+        self.__cleanup()
 
     def on_exit(self, returncode: int) -> None:
         if returncode:

@@ -441,7 +441,9 @@ class Task:
             self.__finished.set_exception(exc)
             self.__finished.exception()
         self.__change_state("failed")
-        self.cancel()
+
+        for child in self.__children:
+            child.__cancel(discard=True)
 
     async def on_prepare(self) -> None:
         pass
@@ -475,6 +477,7 @@ class Task:
             self.__started.cancel()
         if not self.__finished.done():
             self.__finished.cancel()
+
         self.__change_state("discarded" if discard else "cancelled")
 
         for child in self.__children:
