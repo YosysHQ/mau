@@ -14,8 +14,10 @@ Documentation Contents
    :maxdepth: 2
 
    readme
-   reference/index
-
+   config_parser/index
+   source_str
+   modindex
+   genindex
 
 .. todolist::
 
