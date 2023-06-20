@@ -17,6 +17,7 @@ Documentation Contents
    task_loop/index
    config_parser/index
    source_str
+   utilities
    modindex
    genindex
 
