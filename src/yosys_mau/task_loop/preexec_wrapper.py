@@ -26,10 +26,10 @@ if __name__ == "__main__":  # pragma: no cover
         if not os.fork():
             parent_monitor = os.getpid()
 
-            # Don't keep any other file descriptors open
-            if parent_monitor_fd:
-                os.closerange(0, parent_monitor_fd)
-            os.closerange(parent_monitor_fd + 1, os.sysconf("SC_OPEN_MAX"))
+            # Don't keep stdio open
+            os.close(0)
+            os.close(1)
+            os.close(2)
 
             # When the parent crashed or wants us to clean up, we get an eof on this pipe, until
             # then this will block.

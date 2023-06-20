@@ -260,6 +260,8 @@ class Client:
 
         if self._have_pipe:
             if os.get_blocking(self._read_fd) or os.getenv("YOSYS_JOBSERVER_FORCE_HELPER"):
+                from . import job_server_helper
+
                 request_read_fd, self.request_write_fd = os.pipe()
                 self.response_read_fd, response_write_fd = os.pipe()
                 os.set_blocking(self.response_read_fd, False)
@@ -270,8 +272,7 @@ class Client:
                 self._helper_process = subprocess.Popen(
                     [
                         sys.executable,
-                        "-m",
-                        f"{__package__}.job_server_helper",
+                        job_server_helper.__file__,
                         *map(str, pass_fds),
                     ],
                     stdin=subprocess.DEVNULL,

@@ -2,30 +2,101 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 from typing import Any
 
 from . import job_server as job
+from . import preexec_wrapper
 from ._task import Task, TaskEvent
+from .context import InlineContextVar, TaskContextDescriptor, task_context
+
+if os.name == "posix":
+    pass
+
+
+class Cwd(TaskContextDescriptor["os.PathLike[Any] | str"]):
+    @property
+    def default(self) -> os.PathLike[Any] | str:
+        return os.getcwd()
+
+    @default.setter
+    def default(self, value: os.PathLike[Any] | str) -> None:
+        os.chdir(value)
+
+    @default.deleter
+    def default(self) -> None:
+        raise AttributeError("Cannot delete cwd")
+
+
+@task_context
+class ProcessContext:
+    cwd = Cwd()
+
+
+@dataclass
+class _MonitorPipe:
+    read: int | None
+    write: int | None
+
+    def __init__(self):
+        self.read, self.write = os.pipe()
+
+    def inherit_read(self) -> None:
+        if self.read is not None:
+            os.set_inheritable(self.read, True)
+        if self.write is not None:
+            os.set_inheritable(self.write, False)
+
+    def inherit_write(self) -> None:
+        if self.read is not None:
+            os.set_inheritable(self.read, False)
+        if self.write is not None:
+            os.set_inheritable(self.write, True)
+
+    def close_read(self) -> None:
+        if self.read is not None:
+            os.close(self.read)
+            self.read = None
+
+    def close_write(self) -> None:
+        if self.write is not None:
+            os.close(self.write)
+
+    def __del__(self) -> None:
+        self.close_read()
+        self.close_write()
+
+
+_preexec_wrapper_exe = [os.path.join(os.path.dirname(__file__), "preexec_wrapper")]
+if not os.path.exists(_preexec_wrapper_exe[0]):
+    _preexec_wrapper_exe = [sys.executable, preexec_wrapper.__file__]
 
 
 class ProcessTask(Task):
     command: list[str]
-    cwd: os.PathLike[Any] | None
 
     __proc: asyncio.subprocess.Process | None
-    __monitor_pipe: tuple[int, int] | None
+    __monitor_pipe: _MonitorPipe | None
 
-    def __init__(
-        self, command: list[str], cwd: os.PathLike[Any] | None = None, *, lease: bool = True
-    ):
-        super().__init__(lease=lease)
+    def __init__(self, command: list[str], cwd: os.PathLike[Any] | str | None = None):
+        super().__init__()
+        self.use_lease = True
         self.name = command[0]
         self.command = command
-        self.cwd = cwd
+
+        self.__monitor_pipe = None
+
+        if cwd is not None:
+            self.cwd = cwd
+        else:
+            # Take a snapshot at the time of task creation
+            self.cwd = self.cwd
         self.__proc: asyncio.subprocess.Process | None = None
+
+    cwd: InlineContextVar[os.PathLike[Any] | str] = InlineContextVar(ProcessContext, "cwd")
 
     async def on_run(self) -> None:
         # TODO check what to do on Windows
@@ -38,29 +109,23 @@ class ProcessTask(Task):
 
             # See preexec_wrapper.py for details.
 
-            import fcntl
-            import shutil
-
             absolute_path = shutil.which(self.command[0])
 
             if absolute_path is None:
                 raise FileNotFoundError(f"No such file or directory: {self.command[0]!r}")
 
-            self.__monitor_pipe = os.pipe()
-            os.set_inheritable(self.__monitor_pipe[0], True)
-            fcntl.fcntl(self.__monitor_pipe[1], fcntl.F_SETFD, fcntl.FD_CLOEXEC)
+            self.__monitor_pipe = _MonitorPipe()
+            self.__monitor_pipe.inherit_read()
 
             wrapper = [
-                sys.executable,
-                "-m",
-                f"{__package__}.preexec_wrapper",
-                str(self.__monitor_pipe[0]),
+                *_preexec_wrapper_exe,
+                str(self.__monitor_pipe.read),
                 absolute_path,
             ]
 
             subprocess_args["pass_fds"] = (
                 *subprocess_args.get("pass_fds", ()),
-                self.__monitor_pipe[0],
+                self.__monitor_pipe.read,
             )
 
         # TODO check what to do on Windows to ensure that we can terminate the whole process tree
@@ -71,7 +136,7 @@ class ProcessTask(Task):
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            cwd=self.cwd,
+            cwd=ProcessContext.cwd,
             **subprocess_args,
         )
 
@@ -94,8 +159,11 @@ class ProcessTask(Task):
         self.background(read_stderr, wait=True)
 
         returncode = await self.__proc.wait()
+
+        if self.__monitor_pipe:
+            self.__monitor_pipe = None
+
         self.__proc = None
-        self.__cleanup()
 
         ExitEvent(returncode).emit()
 
@@ -103,10 +171,7 @@ class ProcessTask(Task):
 
     def __cleanup(self) -> None:
         if self.__monitor_pipe:
-            if self.__monitor_pipe:
-                for fd in self.__monitor_pipe:
-                    os.close(fd)
-                self.__monitor_pipe = None
+            self.__monitor_pipe = None
         elif self.__proc is not None:
             self.__proc.terminate()
 
