@@ -58,10 +58,10 @@ class ProcessTask(Task):
                 absolute_path,
             ]
 
-            subprocess_args.setdefault("pass_fds", []).append(self.__monitor_pipe[0])
-
-            repr_dict = dict(subprocess_args)
-            repr_dict.pop("env", None)
+            subprocess_args["pass_fds"] = (
+                *subprocess_args.get("pass_fds", ()),
+                self.__monitor_pipe[0],
+            )
 
         # TODO check what to do on Windows to ensure that we can terminate the whole process tree
 
