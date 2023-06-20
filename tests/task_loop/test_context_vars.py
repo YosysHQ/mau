@@ -7,7 +7,8 @@ import yosys_mau.task_loop as tl
 def test_local_override_stays_local():
     order: list[int] = []
 
-    class SomeContext(tl.TaskContext):
+    @tl.task_context
+    class SomeContext:
         some_var: int = 0
 
     def main():
@@ -37,7 +38,8 @@ def test_local_override_stays_local():
 def test_global_override():
     order: list[int] = []
 
-    class SomeContext(tl.TaskContext):
+    @tl.task_context
+    class SomeContext:
         some_var: int = 0
 
     def main():
@@ -69,7 +71,8 @@ def test_global_override():
 def test_local_override_has_priority_over_global_override():
     order: list[int] = []
 
-    class SomeContext(tl.TaskContext):
+    @tl.task_context
+    class SomeContext:
         some_var: int = 0
 
     def main():
@@ -104,7 +107,8 @@ def test_local_override_has_priority_over_global_override():
 def test_no_default_value():
     order: list[int] = []
 
-    class SomeContext(tl.TaskContext):
+    @tl.task_context
+    class SomeContext:
         some_var: int
 
     def main():
@@ -137,7 +141,8 @@ def test_no_default_value():
 def test_override_default():
     order: list[int] = []
 
-    class SomeContext(tl.TaskContext):
+    @tl.task_context
+    class SomeContext:
         some_var: int = 0
 
     def main():

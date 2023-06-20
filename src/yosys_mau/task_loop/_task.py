@@ -46,6 +46,13 @@ def current_task() -> Task:
         raise TaskLoopError("no task is currently active") from None
 
 
+def current_task_or_none() -> Task | None:
+    try:
+        return _current_task.get()
+    except LookupError:
+        pass
+
+
 def root_task() -> RootTask:
     return task_loop().root_task
 
@@ -221,7 +228,6 @@ class Task:
         on_prepare: Callable[[Self], Awaitable[None] | None]
         | Callable[[], Awaitable[None] | None]
         | None = None,
-        lease: bool = False,
     ):
         if on_run is not None:
             if inspect.signature(on_run).parameters:
@@ -243,7 +249,7 @@ class Task:
         self.__error_handlers = {}
         self.__started = asyncio.Future()
         self.__finished = asyncio.Future()
-        self.__use_lease = lease
+        self.__use_lease = False
         self.__lease = None
         self.__cleaned_up = False
         self.__aio_background_tasks = StableSet()

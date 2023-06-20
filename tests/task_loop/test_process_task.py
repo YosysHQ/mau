@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import tempfile
 import time
 from typing import AsyncIterable
 
@@ -89,3 +91,44 @@ def test_termination():
     after = time.time()
 
     assert after - before < 8
+
+
+def test_cwd():
+    output_lines: list[str] = []
+
+    cwd = os.getcwd()
+
+    assert tl.process.ProcessContext.cwd == cwd
+
+    temp_dir = tempfile.TemporaryDirectory()
+    temp_dir2 = tempfile.TemporaryDirectory()
+
+    async def main():
+        proc = tl.ProcessTask(["pwd"])
+
+        async def handle_output(lines: AsyncIterable[tl.process.OutputEvent]):
+            async for line_event in lines:
+                output_lines.append(line_event.output)
+
+        proc.events(tl.process.OutputEvent).process(handle_output)
+
+        await proc.finished
+
+        proc = tl.ProcessTask(["pwd"], cwd=temp_dir.name)
+        proc.events(tl.process.OutputEvent).process(handle_output)
+
+        await proc.finished
+
+        tl.process.ProcessContext.cwd = temp_dir2.name
+
+        proc = tl.ProcessTask(["pwd"])
+        proc.events(tl.process.OutputEvent).process(handle_output)
+
+        await proc.finished
+
+    tl.TaskLoop(main)
+
+    assert "".join(output_lines) == f"{cwd}\n{temp_dir.name}\n{temp_dir2.name}\n"
+
+    temp_dir.cleanup()
+    temp_dir2.cleanup()

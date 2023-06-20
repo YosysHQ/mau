@@ -14,7 +14,7 @@ from ._task import (
     task_loop,
 )
 
-TaskContext = context.TaskContext
+task_context = context.task_context
 
 ProcessTask = process.ProcessTask
 ProcessEvent = process.ProcessEvent

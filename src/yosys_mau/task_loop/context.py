@@ -1,133 +1,116 @@
 from __future__ import annotations
 
-import abc
 from typing import Any, Generic, TypeVar
 from weakref import WeakKeyDictionary
 
-from ._task import Task, TaskLoopError, current_task
+from ._task import Task, current_task_or_none
 
 T = TypeVar("T")
 
-MISSING = object()
+
+class _MISSING_TYPE:
+    pass
 
 
-class ContextData:
-    instance: ContextData
+MISSING = _MISSING_TYPE()
 
-    data: WeakKeyDictionary[Task, dict[tuple[TaskContextMeta, str], Any]]
 
-    def __init__(self) -> None:
-        self.data = WeakKeyDictionary()
+class TaskContextDescriptor(Generic[T]):
+    __data: WeakKeyDictionary[Task, T]
+    __default: T
+    __owner: Any
+    __name: str | None
 
-    def _task_data(self, task: Task) -> Any:
-        try:
-            data = self.data[task]
-        except KeyError:
-            data = self.data[task] = {}
-        return data
+    def __init__(self, default: T | _MISSING_TYPE = MISSING) -> None:
+        self.__data = WeakKeyDictionary()
+        if default is not MISSING:
+            self.default = default  # type: ignore
+        self.__owner = None
+        self.__name = None
 
-    def get(self, task: Task, context: TaskContextMeta, attr: str, default: Any = MISSING) -> Any:
-        cursor: Task | None = task
-        while cursor:
+    def __set_name__(self, owner: type, name: str) -> None:
+        self.__owner = owner
+        self.__name = name
+
+    def __attr_name(self) -> str:
+        if self.__name is None:
+            return repr(self)
+        else:
+            return f"{self.__owner.__qualname__}.{self.__name}"
+
+    def __get__(self, instance: Any, owner: type) -> T:
+        cursor = current_task_or_none()
+        while cursor is not None:
             try:
-                return self._task_data(cursor)[context, attr]
+                return self.__data[cursor]
             except KeyError:
                 cursor = cursor.parent
-
-        if default is not MISSING:
-            return default
-
-        raise AttributeError(f"Context attribute {attr!r} not set for {task} or any parent")
-
-    def set(self, task: Task, context: TaskContextMeta, attr: str, value: Any) -> None:
-        self._task_data(task)[context, attr] = value
-
-    def delete(self, task: Task, context: TaskContextMeta, attr: str) -> None:
         try:
-            self._task_data(task).pop((context, attr))
-        except KeyError:
-            raise AttributeError(f"Context attribute {attr!r} not set for task {task}") from None
+            return self.default
+        except AttributeError:
+            raise AttributeError(f"Context variable {self.__attr_name()} not set") from None
 
-
-ContextData.instance = ContextData()
-
-
-def current_task_or_none() -> Task | None:
-    try:
-        return current_task()
-    except TaskLoopError:
-        return None
-
-
-class TaskContextMeta(type):
-    def __getattribute__(self, name: str) -> Any:
-        plain = object.__getattribute__(self, "__dict__").get(name, MISSING)
-        plain_type = type(plain)
-        if hasattr(plain_type, "__get__") or hasattr(plain_type, "__set__"):
-            if isinstance(plain, TaskContextDescriptor):
-                return plain.__getctxattr__(current_task_or_none(), self)
-            return super().__getattribute__(name)
-        try:
-            task = current_task()
-        except TaskLoopError:
-            if plain is not MISSING:
-                return plain
+    def __set__(self, instance: Any, value: T) -> None:
+        task = current_task_or_none()
+        if task is None:
+            self.default = value
         else:
-            return ContextData.instance.get(task, self, name, plain)
-        raise AttributeError(f"Context attribute {name!r} not set")
+            self.__data[task] = value
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        plain = object.__getattribute__(self, "__dict__").get(name, MISSING)
-        plain_type = type(plain)
-        if hasattr(plain_type, "__get__") or hasattr(plain_type, "__set__"):
-            if isinstance(plain, TaskContextDescriptor):
-                plain.__setctxattr__(current_task_or_none(), self, value)
-                return
-            super().__setattr__(name, value)
-            return
-        try:
-            task = current_task()
-        except TaskLoopError:
-            super().__setattr__(name, value)
-            return
+    def __delete__(self, instance: Any) -> None:
+        task = current_task_or_none()
+        if task is None:
+            try:
+                del self.default
+            except KeyError:
+                raise AttributeError(
+                    f"Context variable {self.__attr_name()} not set for the current task"
+                ) from None
         else:
-            ContextData.instance.set(task, self, name, value)
+            del self.__data[task]
 
-    def __delattr__(self, name: str) -> None:
-        plain = object.__getattribute__(self, "__dict__").get(name, MISSING)
-        plain_type = type(plain)
-        if hasattr(plain_type, "__get__") or hasattr(plain_type, "__set__"):
-            if isinstance(plain, TaskContextDescriptor):
-                plain.__delctxattr__(current_task_or_none(), self)
-                return
-            super().__delattr__(name)
-            return
-        try:
-            task = current_task()
-        except TaskLoopError:
-            super().__delattr__(name)
-            return
-        else:
-            ContextData.instance.delete(task, self, name)
+    @property
+    def default(self) -> T:
+        return self.__default
+
+    @default.setter
+    def default(self, value: T) -> None:
+        self.__default = value
+
+    @default.deleter
+    def default(self) -> None:
+        del self.__default
 
 
-class TaskContext(metaclass=TaskContextMeta):
-    def __new__(cls):
-        raise TypeError("TaskContext is not instantiable")
+class InlineContextVar(Generic[T]):
+    def __init__(self, context: Any, name: str):
+        self.__context = context
+        self.__name = name
 
-
-class TaskContextDescriptor(abc.ABC, Generic[T]):
     def __get__(self, instance: Any, owner: type) -> T:
-        if instance is not None:
-            raise AttributeError("TaskContextDescriptor is not accessible on instances")
-        return self.__getctxattr__(current_task_or_none(), owner)
+        with instance.as_current_task():
+            return getattr(self.__context, self.__name)
 
-    @abc.abstractmethod
-    def __getctxattr__(self, task: Task | None, context_type: type) -> Any:
-        ...
+    def __set__(self, instance: Any, value: T) -> None:
+        with instance.as_current_task():
+            setattr(self.__context, self.__name, value)
 
-    def __setctxattr__(self, task: Task | None, context_type: type, value: Any) -> None:
-        raise AttributeError("TaskContextDescriptor is read-only")
+    def __delete__(self, instance: Any) -> None:
+        with instance.as_current_task():
+            delattr(self.__context, self.__name)
 
-    def __delctxattr__(self, task: Task | None, context_type: type) -> None:
-        raise AttributeError("TaskContextDescriptor is not deletable")
+
+def task_context_class(cls: type[T]) -> type[T]:
+    for name in getattr(cls, "__annotations__", ()):
+        try:
+            default_or_descriptor = cls.__dict__[name]
+        except KeyError:
+            setattr(cls, name, TaskContextDescriptor())
+        else:
+            if not hasattr(default_or_descriptor, "__get__"):
+                setattr(cls, name, TaskContextDescriptor(default_or_descriptor))
+    return cls
+
+
+def task_context(cls: type[T]) -> T:
+    return task_context_class(cls)()
