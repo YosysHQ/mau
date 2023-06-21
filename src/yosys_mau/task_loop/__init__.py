@@ -1,31 +1,35 @@
 from . import context, process
 from ._task import (
+    ChildAborted,
+    ChildCancelled,
+    ChildFailed,
     DebugEvent,
+    DependencyAborted,
+    DependencyCancelled,
+    DependencyFailed,
     Task,
+    TaskAborted,
+    TaskCancelled,
     TaskEvent,
     TaskEventStream,
     TaskFailed,
-    TaskLoop,
     TaskLoopError,
     TaskStateChange,
-    background,
     current_task,
     root_task,
-    task_loop,
+    run_task_loop,
 )
 
 task_context = context.task_context
 
-ProcessTask = process.ProcessTask
+ProcessTask = process.Process
 ProcessEvent = process.ProcessEvent
 
 __all__ = [
     "Task",
-    "TaskLoop",
-    "task_loop",
+    "run_task_loop",
     "current_task",
     "root_task",
-    "background",
     "TaskEvent",
     "TaskEventStream",
     "TaskLoopError",
@@ -33,6 +37,14 @@ __all__ = [
     "TaskStateChange",
     "ProcessTask",
     "ProcessEvent",
-    "TaskContext",
+    "task_context",
+    "TaskAborted",
     "TaskFailed",
+    "TaskCancelled",
+    "DependencyAborted",
+    "DependencyFailed",
+    "DependencyCancelled",
+    "ChildAborted",
+    "ChildFailed",
+    "ChildCancelled",
 ]

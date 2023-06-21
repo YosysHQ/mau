@@ -30,7 +30,7 @@ def test_local_override_stays_local():
         task2.depends_on(task1)
         task3.depends_on(task2)
 
-    tl.TaskLoop(main)
+    tl.run_task_loop(main)
 
     assert order == [1, 0, 0]
 
@@ -63,7 +63,7 @@ def test_global_override():
         task2.depends_on(task1)
         task3.depends_on(task2)
 
-    tl.TaskLoop(main)
+    tl.run_task_loop(main)
 
     assert order == [1, 1, 2]
 
@@ -99,7 +99,7 @@ def test_local_override_has_priority_over_global_override():
         task2.depends_on(task1)
         task3.depends_on(task2)
 
-    tl.TaskLoop(main)
+    tl.run_task_loop(main)
 
     assert order == [1, 1, 3]
 
@@ -133,7 +133,7 @@ def test_no_default_value():
         task2.depends_on(task1)
         task3.depends_on(task2)
 
-    tl.TaskLoop(main)
+    tl.run_task_loop(main)
 
     assert order == [1, 2]
 
@@ -166,7 +166,7 @@ def test_override_default():
 
     SomeContext.some_var = 3
 
-    tl.TaskLoop(main)
+    tl.run_task_loop(main)
 
     assert order == [1, 3, 3]
 

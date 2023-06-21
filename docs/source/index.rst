@@ -12,6 +12,7 @@ Documentation Contents
 
 .. toctree::
    :maxdepth: 2
+   :includehidden:
 
    readme
    task_loop/index

@@ -33,7 +33,17 @@ class Cwd(TaskContextDescriptor["os.PathLike[Any] | str"]):
 
 @task_context
 class ProcessContext:
+    """Task context variables for `Process` tasks."""
+
     cwd = Cwd()
+    """The working directory for newly spawned processes.
+
+    Note that `Process`'s constructor takes a snapshot of this value, so parent updates between the
+    creation of the `Process` task and the actual start of the process are ignored.
+
+    Changing the default value outside of a task loop changes the working directory using
+    `os.chdir`.
+    """
 
 
 @dataclass
@@ -75,7 +85,9 @@ if not os.path.exists(_preexec_wrapper_exe[0]):
     _preexec_wrapper_exe = [sys.executable, preexec_wrapper.__file__]
 
 
-class ProcessTask(Task):
+class Process(Task):
+    """A task that runs and supervises a subprocess."""
+
     command: list[str]
 
     __proc: asyncio.subprocess.Process | None
@@ -97,6 +109,10 @@ class ProcessTask(Task):
         self.__proc: asyncio.subprocess.Process | None = None
 
     cwd: InlineContextVar[os.PathLike[Any] | str] = InlineContextVar(ProcessContext, "cwd")
+    """
+    Inlined context variable for the working directory for newly spawned processes. Accessing this
+    is the same as accessing `ProcessContext.cwd` in the context of this `Process` task.
+    """
 
     async def on_run(self) -> None:
         # TODO check what to do on Windows
@@ -150,13 +166,13 @@ class ProcessTask(Task):
             while line := await stdout.readline():
                 StdoutEvent(line.decode()).emit()
 
-        self.background(read_stdout, wait=True)
+        read_stdout_handle = self.background(read_stdout, wait=True)
 
         async def read_stderr():
             while line := await stderr.readline():
                 StderrEvent(line.decode()).emit()
 
-        self.background(read_stderr, wait=True)
+        read_stderr_handle = self.background(read_stderr, wait=True)
 
         returncode = await self.__proc.wait()
 
@@ -164,6 +180,9 @@ class ProcessTask(Task):
             self.__monitor_pipe = None
 
         self.__proc = None
+
+        await read_stdout_handle
+        await read_stderr_handle
 
         ExitEvent(returncode).emit()
 
@@ -182,27 +201,47 @@ class ProcessTask(Task):
         self.__cleanup()
 
     def on_exit(self, returncode: int) -> None:
+        """Called when the process exits.
+
+        By default, this raises a `subprocess.CalledProcessError` if the process exited with a
+        non-zero return code. Override this to change this behavior.
+        """
         if returncode:
             raise subprocess.CalledProcessError(returncode, self.command)
 
 
 class ProcessEvent(TaskEvent):
+    """Base class for events emitted by `Process` tasks."""
+
     pass
 
 
 @dataclass
 class OutputEvent(ProcessEvent):
+    """Base class for events containing output of a `Process`."""
+
     output: str
+    """The output of the process.
+
+    By default this is a single line of output, including trailing newlines.
+    """
 
 
 class StdoutEvent(OutputEvent):
+    """Emitted when a `Process` writes to stdout."""
+
     pass
 
 
 class StderrEvent(OutputEvent):
+    """Emitted when a `Process` writes to stderr."""
+
     pass
 
 
 @dataclass
 class ExitEvent(ProcessEvent):
+    """Emitted when a `Process` exits."""
+
     returncode: int
+    """The return code of the process."""

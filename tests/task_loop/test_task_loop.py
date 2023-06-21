@@ -11,7 +11,7 @@ def test_minimal_sync():
         nonlocal did_run
         did_run = True
 
-    tl.TaskLoop(main)
+    tl.run_task_loop(main)
 
     assert did_run
 
@@ -23,7 +23,7 @@ def test_minimal_async():
         nonlocal did_run
         did_run = True
 
-    tl.TaskLoop(main)
+    tl.run_task_loop(main)
 
     assert did_run
 
@@ -43,7 +43,7 @@ def test_no_task_loop_running():
 
         tl.current_task().on_cleanup = cleanup
 
-    tl.TaskLoop(main)
+    tl.run_task_loop(main)
 
 
 def test_dependencies():
@@ -67,7 +67,7 @@ def test_dependencies():
 
         task3.depends_on(task1)
 
-    tl.TaskLoop(main)
+    tl.run_task_loop(main)
 
     assert order == [2, 1, 3]
 
@@ -95,6 +95,6 @@ def test_dependencies_failure():
         task3.depends_on(task1)
 
     with pytest.raises(tl.TaskFailed):
-        tl.TaskLoop(main)
+        tl.run_task_loop(main)
 
     assert order == [2, 1]

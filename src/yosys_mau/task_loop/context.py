@@ -16,6 +16,17 @@ MISSING = _MISSING_TYPE()
 
 
 class TaskContextDescriptor(Generic[T]):
+    """A descriptor that stores a value per `Task`.
+
+    When assigning or deleting the attribute from within the task loop, this affects the value
+    stored for the current task.
+
+    With no task loop running, this affects the default value for the attribute.
+
+    When reading the attribute, this performs a lookup in the task hierarchy, starting from the
+    current task and going up to the root task. If no value is found the default value is returned.
+    """
+
     __data: WeakKeyDictionary[Task, T]
     __default: T
     __owner: Any
@@ -71,6 +82,12 @@ class TaskContextDescriptor(Generic[T]):
 
     @property
     def default(self) -> T:
+        """The default value for this context variable.
+
+        It is possible to subclass this descriptor and to override this property to provide a custom
+        dynamic behavior for the default value while retaining the same lookup and assignment
+        behavior for values associated to tasks.
+        """
         return self.__default
 
     @default.setter
@@ -83,8 +100,20 @@ class TaskContextDescriptor(Generic[T]):
 
 
 class InlineContextVar(Generic[T]):
-    def __init__(self, context: Any, name: str):
-        self.__context = context
+    """A descriptor that makes a task context variable available as an attribute of a task.
+
+    This has to be used within subclasses of `Task`. Accessing the corresponding attribute of a
+    `Task` instance behaves as if that task was the current task and the task context variable was
+    accessed.
+
+    .. todo:: Example to illustrate the previous paragraph.
+
+    :param context: The task context variable group that contains the task context variable.
+    :param name: The name of the task context variable within this group.
+    """
+
+    def __init__(self, context_var_group: Any, name: str):
+        self.__context = context_var_group
         self.__name = name
 
     def __get__(self, instance: Any, owner: type) -> T:
@@ -113,4 +142,31 @@ def task_context_class(cls: type[T]) -> type[T]:
 
 
 def task_context(cls: type[T]) -> T:
-    return task_context_class(cls)()
+    """Decorator for a class defining a group of task context variables.
+
+    Note that this decorator replaces the class with a singleton instance of the class with all
+    annotated non-descriptor attributes wrapped in a `TaskContextDescriptor`. Existing
+    non-descriptor attribute values are used as default values for the new descriptor.
+
+    .. todo:: Example for `task_context`
+    """
+
+    cls = task_context_class(cls)
+
+    # This below is needed to make Sphinx happy, otherwise we could just return ``cls()``.
+    class AsMetaclass(cls, type):  # type: ignore
+        pass
+
+    class AsInstance(metaclass=AsMetaclass):
+        pass
+
+    if hasattr(cls, "__module__"):
+        AsInstance.__module__ = cls.__module__
+    if hasattr(cls, "__name__"):
+        AsInstance.__name__ = cls.__name__
+    if hasattr(cls, "__qualname__"):
+        AsInstance.__qualname__ = cls.__qualname__
+    if hasattr(cls, "__doc__"):
+        AsInstance.__doc__ = cls.__doc__
+
+    return AsInstance  # type: ignore

@@ -23,7 +23,7 @@ def test_exit_event_success():
 
         true_proc.events(tl.process.ExitEvent).handle(on_exit_event)
 
-    tl.TaskLoop(main)
+    tl.run_task_loop(main)
 
     assert did_run
 
@@ -47,7 +47,7 @@ def test_exit_event_nonzero_returncode():
 
         false_proc.events(tl.process.ExitEvent).handle(on_exit_event)
 
-    tl.TaskLoop(main)
+    tl.run_task_loop(main)
 
     assert did_run
 
@@ -57,7 +57,7 @@ def test_exit_event_failure():
         tl.ProcessTask(["false"])
 
     with pytest.raises(tl.TaskFailed):
-        tl.TaskLoop(main)
+        tl.run_task_loop(main)
 
 
 def test_output_events():
@@ -72,7 +72,7 @@ def test_output_events():
 
         proc.events(tl.process.OutputEvent).process(handle_output)
 
-    tl.TaskLoop(main)
+    tl.run_task_loop(main)
 
     assert output_lines == ["hello world\n", "a second line\n"]
 
@@ -83,11 +83,10 @@ def test_termination():
 
         await asyncio.sleep(0.1)
 
-        tl.current_task().set_error_handler(proc, lambda _: None)
         proc.cancel()
 
     before = time.time()
-    tl.TaskLoop(main)
+    tl.run_task_loop(main)
     after = time.time()
 
     assert after - before < 8
@@ -126,7 +125,7 @@ def test_cwd():
 
         await proc.finished
 
-    tl.TaskLoop(main)
+    tl.run_task_loop(main)
 
     assert "".join(output_lines) == f"{cwd}\n{temp_dir.name}\n{temp_dir2.name}\n"
 

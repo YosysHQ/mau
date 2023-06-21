@@ -3,12 +3,18 @@ Task Loop
 
 The task loop provides common functionality for applications that perform several tasks that can run concurrently, have dependencies between them, can fail and handle failure of other tasks.
 
-This page provides a general overview of the task loop and its concepts.
+This page provides a general overview of the task loop and its concepts, see individual subpages for details:
 
-.. TODO:: Subpages for more details including the API documentation.
+.. toctree::
+   :maxdepth: 1
 
-Task Hierarchy and Dependencies
--------------------------------
+   task
+   event
+   context
+   process
+
+
+.. rubric:: Task Hierarchy and Dependencies
 
 When a task runs, it performs several actions and either ends successfully, fails or becomes cancelled or discarded (the latter is used as a term for automatic implicit cancellations).
 A task can perform some of these actions on its own and it can also launch one or several child task to do so.
@@ -23,8 +29,7 @@ In addition to that, arbitrary dependencies between tasks across the hierarchy c
 When a task fails, e.g. when the the user code throws an uncought exception, its still running children are discarded and its parent task fails as do any tasks depending on the failing task.
 Parent tasks and dependencies can install error handlers to override this behavior, i.e. to recover from a failing dependency or child.
 
-Current Task
-------------
+.. rubric:: Current Task
 
 Whenever Python code executes as part of the event loop, it executes in the context of a specific task, called the *current task*.
 Many operations implicitly use the current task, e.g. creating a new task makes it a child of the current task.
@@ -33,28 +38,24 @@ When the event loop starts, the root task is the current task.
 It is always possible to temporarily override the current task for a section of code.
 Doing this does not affect concurrently executing code, as tracking the current task is implemented using Python's `contextvars` feature.
 
-Concurrency
------------
+.. rubric:: Concurrency
 
 By default, tasks run concurrently, respecting the implicit hierarchical dependency as well as explicitly declared dependencies.
 Within a task, multiple Python async coroutines can also run concurrently, e.g. to interact with multiple child tasks simultaneously.
 The task loop also integrates with the Make jobserver protocol which allows limiting the concurrent execution of computational tasks to the number of available cores.
 
-Communication
--------------
+.. rubric:: Communication
 
 The task loop provides two dedicated mechanisms for communication between tasks: context variables and events.
 In addition any other mechanism that integrates with Python's asyncio runtime can be used.
 
-Context Variables
-^^^^^^^^^^^^^^^^^
+.. rubric:: Context Variables
 
 Contexts variables are used to automatically pass data from parent tasks to child tasks.
 When reading a context variable, the value set by the first task--starting from the current task following parents up to the root task--is used.
 This is similar to environment variables with the difference that later updates are visible to already running child tasks for whch the context variable is not explicitly set.
 
-Events
-^^^^^^
+.. rubric:: Events
 
 Events are used to pass data from child tasks to their parents or other tasks.
 A task can emit events and other tasks can listen to these by installing an event handler or obtaining an async iterator of events.
