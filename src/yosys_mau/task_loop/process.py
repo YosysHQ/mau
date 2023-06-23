@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -14,6 +15,7 @@ import yosys_mau
 from . import job_server as job
 from ._task import Task, TaskEvent
 from .context import InlineContextVar, TaskContextDescriptor, task_context
+from .logging import log
 
 if os.name == "posix":
     pass
@@ -119,16 +121,29 @@ class Process(Task):
 
     command: list[str]
 
+    interact: bool
+
     __proc: asyncio.subprocess.Process | None
     __monitor_pipe: _MonitorPipe | None
+    __startup_buffer: list[bytes | None]
+    __process_started: bool
 
-    def __init__(self, command: list[str], cwd: os.PathLike[Any] | str | None = None):
+    def __init__(
+        self,
+        command: list[str],
+        *,
+        cwd: os.PathLike[Any] | str | None = None,
+        interact: bool = False,
+    ):
         super().__init__()
         self.use_lease = True
         self.name = command[0]
         self.command = command
+        self.interact = interact
 
         self.__monitor_pipe = None
+        self.__startup_buffer = []
+        self.__process_started = False
 
         if cwd is not None:
             self.cwd = cwd
@@ -147,6 +162,16 @@ class Process(Task):
         # TODO check what to do on Windows
         subprocess_args = job.global_client().subprocess_args()
         wrapper = []
+
+        cmd_string = shlex.join(self.command)
+
+        cwd = ProcessContext.cwd
+
+        real_cwd = os.getcwd()
+        if self.cwd != real_cwd:
+            cmd_string = f"(cd {shlex.quote(str(cwd))} && {cmd_string})"
+
+        log(f"starting process {cmd_string}")
 
         if os.name == "posix":
             # On posix systems we use process groups to ensure that the spawned process cannot
@@ -178,12 +203,25 @@ class Process(Task):
         self.__proc = await asyncio.create_subprocess_exec(
             *wrapper,
             *self.command,
-            stdin=subprocess.DEVNULL,
+            stdin=subprocess.PIPE if self.interact else subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            cwd=ProcessContext.cwd,
+            cwd=cwd,
             **subprocess_args,
         )
+        self.__process_started = True
+
+        if self.interact:
+            stdin = self.__proc.stdin
+            assert stdin is not None
+
+            for item in self.__startup_buffer:
+                if item is not None:
+                    stdin.write(item)
+                else:
+                    stdin.close()
+
+            self.__startup_buffer = []
 
         stdout = self.__proc.stdout
         stderr = self.__proc.stderr
@@ -193,13 +231,15 @@ class Process(Task):
 
         async def read_stdout():
             while line := await stdout.readline():
-                StdoutEvent(line.decode()).emit()
+                line_str = line.decode()
+                StdoutEvent(line_str).emit()
 
         read_stdout_handle = self.background(read_stdout, wait=True)
 
         async def read_stderr():
             while line := await stderr.readline():
-                StderrEvent(line.decode()).emit()
+                line_str = line.decode()
+                StderrEvent(line_str).emit()
 
         read_stderr_handle = self.background(read_stderr, wait=True)
 
@@ -212,6 +252,8 @@ class Process(Task):
 
         await read_stdout_handle
         await read_stderr_handle
+
+        log(f"finished (returncode={returncode})")
 
         ExitEvent(returncode).emit()
 
@@ -237,6 +279,41 @@ class Process(Task):
         """
         if returncode:
             raise subprocess.CalledProcessError(returncode, self.command)
+
+    @property
+    def stdin(self) -> asyncio.StreamWriter:
+        if self.__proc is None:
+            raise RuntimeError("stdin is only available while the process is running")
+        stdin = self.__proc.stdin
+        if stdin is None:
+            raise RuntimeError("stdin is only available for interactive processes")
+        return stdin
+
+    def write(self, data: str) -> None:
+        data_bytes = data.encode()
+        if not self.__process_started:
+            self.__startup_buffer.append(data_bytes)
+            return
+        self.stdin.write(data_bytes)
+
+    def close_stdin(self) -> None:
+        if not self.__process_started:
+            self.__startup_buffer.append(None)
+            return
+        try:
+            stdin = self.stdin
+        except RuntimeError:
+            pass
+        else:
+            stdin.close()
+
+    def log_output(self) -> None:
+        with self.as_current_task():
+
+            def handler(event: OutputEvent):
+                log(event.output.rstrip("\n"))
+
+            self.sync_handle_events(OutputEvent, handler)
 
 
 class ProcessEvent(TaskEvent):

@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from itertools import count
-from typing import Any, Awaitable, Callable, Iterator, Literal
+from typing import Any, Awaitable, Callable, Generic, Iterator, Literal
 
 from typing_extensions import ParamSpec, Self
 
@@ -103,6 +103,10 @@ class TaskLoop:
         global_task_loop = self
 
         async def wrapper():
+            # aio_task = asyncio.current_task()
+            # assert aio_task
+            # aio_task.set_name("task loop")
+
             if handle_sigint:
                 asyncio.get_event_loop().add_signal_handler(signal.SIGINT, self._handle_sigint)
             job.global_client()  # early setup of the job server client
@@ -123,8 +127,16 @@ class TaskLoop:
             global_task_loop = None
 
     def _handle_sigint(self) -> None:
-        if self.root_task:
-            self.root_task.cancel()
+        try:
+            if self.root_task.is_finished:
+                for task in asyncio.all_tasks():
+                    print("# Cancelling task:", task.get_name())
+                for task in asyncio.all_tasks():
+                    task.cancel()
+            else:
+                self.root_task.cancel()
+        except BaseException:
+            raise KeyboardInterrupt from None
 
 
 def run_task_loop(
@@ -138,6 +150,30 @@ def run_task_loop(
 
     """
     TaskLoop(on_run, handle_sigint=handle_sigint)
+
+
+class ContextProxy(Generic[T]):
+    def __init__(self, task: Task, wrapped: T):
+        object.__setattr__(self, "__ContextProxy_task", task)
+        object.__setattr__(self, "__ContextProxy_wrapped", wrapped)
+
+    def __getattr__(self, name: str) -> Any:
+        task = object.__getattribute__(self, "__ContextProxy_task")
+        wrapped = object.__getattribute__(self, "__ContextProxy_wrapped")
+        with task.as_current_task():
+            return getattr(wrapped, name)
+
+    def __setattr__(self, name: str, value: Any):
+        task = object.__getattribute__(self, "__ContextProxy_task")
+        wrapped = object.__getattribute__(self, "__ContextProxy_wrapped")
+        with task.as_current_task():
+            setattr(wrapped, name, value)
+
+    def __delattr__(self, name: str):
+        task = object.__getattribute__(self, "__ContextProxy_task")
+        wrapped = object.__getattribute__(self, "__ContextProxy_wrapped")
+        with task.as_current_task():
+            delattr(wrapped, name)
 
 
 class Task:
@@ -159,18 +195,22 @@ class Task:
 
     __reverse_dependencies: StableSet[Task]
 
-    __error_handlers: dict[Task | None, Callable[[BaseException], Awaitable[None] | None]]
+    __error_handlers: dict[Task | None, Callable[[BaseException], None]]
 
     __state: TaskState
 
     __aio_main_task: asyncio.Task[None]
     __aio_background_tasks: StableSet[asyncio.Task[None]]
     __aio_wait_background_tasks: StableSet[asyncio.Task[None]]
+    __background_task_counter: int
+
+    __block_finish_counter: int
 
     __started: asyncio.Future[None]
     __finished: asyncio.Future[None]
 
     __event_cursors: dict[type, asyncio.Future[TaskEventCursor[Any]]]
+    __event_sync_handlers: dict[type, StableSet[Callable[[Any], None]]]
 
     __use_lease: bool
     __lease: job.Lease | None
@@ -183,6 +223,9 @@ class Task:
 
     Defaults to `True`.
     """
+
+    def __getitem__(self, context: T) -> T:
+        return ContextProxy(self, context)  # type: ignore
 
     @property
     def use_lease(self) -> bool:
@@ -229,22 +272,27 @@ class Task:
     def name(self, name: str) -> None:
         assert name
         if self.parent is None:
-            self.__name = name
+            self.__set_name(name)
             return
 
         if self.__name:
             self.parent.__child_names.remove(self.__name)
 
         if name not in self.parent.__child_names:
-            self.__name = name
+            self.__set_name(name)
             self.parent.__child_names.add(name)
             return
 
         for i in count(1):
             if (unique_name := f"{name}#{i}") not in self.parent.__child_names:
-                self.__name = unique_name
+                self.__set_name(unique_name)
                 self.parent.__child_names.add(unique_name)
                 break
+
+    def __set_name(self, name: str):
+        self.__name = name
+        # if self.parent:
+        #     self.__aio_main_task.set_name(f"{name} main")
 
     @property
     def path(self) -> str:
@@ -303,8 +351,11 @@ class Task:
         self.__cleaned_up = False
         self.__aio_background_tasks = StableSet()
         self.__aio_wait_background_tasks = StableSet()
+        self.__background_task_counter = 0
         self.__event_cursors = {}
+        self.__event_sync_handlers = {}
         self.__cancelled_by = None
+        self.__block_finish_counter = 0
 
         self.discard = True
 
@@ -325,7 +376,7 @@ class Task:
 
         self.name = self.__class__.__name__
 
-        self.__aio_main_task = asyncio.create_task(self.__task_main())
+        self.__aio_main_task = asyncio.create_task(self.__task_main(), name=f"{self.name} main")
 
     def __change_state(self, new_state: TaskState) -> None:
         if self.__state == new_state:
@@ -349,7 +400,7 @@ class Task:
             task.__reverse_dependencies.add(self)
 
     def set_error_handler(
-        self, task: Task | None, handler: Callable[[BaseException], Awaitable[None] | None]
+        self, task: Task | None, handler: Callable[[BaseException], None]
     ) -> None:
         """Register a handler for failing or cancelled tasks.
 
@@ -376,12 +427,12 @@ class Task:
 
     def __dependency_finished(self, task: Task) -> None:
         self.__pending_dependencies.pop(task)
-        self.__propagate_failure(task, wrap=(DependencyFailed, DependencyCancelled))
+        self.__propagate_failure(task, (DependencyFailed, DependencyCancelled))
         self.__check_start()
 
     def __child_finished(self, task: Task) -> None:
         self.__pending_children.pop(task)
-        self.__propagate_failure(task, wrap=(ChildFailed, ChildCancelled))
+        self.__propagate_failure(task, (ChildFailed, ChildCancelled))
         self.__check_finish()
 
     def __check_start(self) -> None:
@@ -407,15 +458,15 @@ class Task:
             return
         if self.__aio_wait_background_tasks:
             return
-        self.__cleanup()
+        if self.__block_finish_counter:
+            return
         self.__finished.set_result(None)
 
     def __propagate_failure(
         self,
         task: Task,
+        wrap: tuple[Callable[[Task], BaseException], Callable[[Task], BaseException]],
         exception: BaseException | None = None,
-        *,
-        wrap: tuple[Callable[[Task], BaseException], Callable[[Task], BaseException]] | None = None,
     ) -> None:
         if exception is None:
             try:
@@ -426,22 +477,29 @@ class Task:
             if exception is None:
                 return
 
-        if wrap:
-            wrap_failed, wrap_cancelled = wrap
+        wrap_failed, wrap_cancelled = wrap
 
-            if isinstance(exception, asyncio.CancelledError):
-                exc = wrap_cancelled(task)
-            else:
-                exc = wrap_failed(task)
-                exc.__cause__ = exception
-            exception = exc
+        if isinstance(exception, asyncio.CancelledError):
+            exc = wrap_cancelled(task)
+        else:
+            exc = wrap_failed(task)
+            exc.__cause__ = exception
+        exception = exc
+
+        found = None
 
         if handler := self.__error_handlers.get(task):
-            self.background(lambda: handler(exception), wait=True, error_handler=True)
+            found = handler
             return
 
         if handler := self.__error_handlers.get(None):
-            self.background(lambda: handler(exception), wait=True, error_handler=True)
+            found = handler
+
+        if found is not None:
+            try:
+                found(exception)
+            except BaseException as exc:
+                self.__failed(exc)
             return
 
         if isinstance(exception, asyncio.CancelledError):
@@ -465,7 +523,7 @@ class Task:
             await self.finished
             self.__change_state("done")
         except Exception as exc:
-            self.__propagate_failure(self, exc)
+            self.__failed(exc)
         finally:
             _current_task.reset(__prev_task)
             self.__cleanup()
@@ -475,6 +533,8 @@ class Task:
             return
         self.__cleaned_up = True
         self.on_cleanup()
+        self.__lease = None
+
         for task, callback in self.__pending_children.items():
             task.__finished.remove_done_callback(callback)
 
@@ -493,9 +553,17 @@ class Task:
         for cursor in self.__event_cursors.values():
             cursor.cancel()
 
+        self.__aio_main_task.cancel()
+        if asyncio.current_task() == self.__aio_main_task:
+            raise asyncio.CancelledError()
+
     def __failed(self, exc: BaseException | None) -> None:
         if exc is None or self.is_finished:
             return
+        if isinstance(exc, asyncio.CancelledError):
+            self.__cancel()
+            return
+
         self.__lease = None
         if not self.__started.done():
             self.__started.set_exception(exc)
@@ -507,6 +575,8 @@ class Task:
 
         for child in self.__children:
             child.__cancel(discard=True)
+
+        self.__cleanup()
 
     async def on_prepare(self) -> None:
         """Actions to perform right after the task is created, before scheduling it to run.
@@ -578,7 +648,7 @@ class Task:
         not explicitly handle cancellation of their dependencies (with the exception of the current
         task).
         """
-        self.__cancelled_by = current_task()
+        self.__cancelled_by = current_task_or_none()
         self.__cancel(discard=False)
 
     def __discard_via(self, task: Task) -> None:
@@ -589,8 +659,6 @@ class Task:
     def __cancel(self, discard: bool = False) -> None:
         if self.is_finished:
             return
-        self.__aio_main_task.cancel()
-        self.__lease = None
         if not self.__started.done():
             self.__started.cancel()
         if not self.__finished.done():
@@ -601,8 +669,11 @@ class Task:
         for child in self.__children:
             child.__cancel(discard=discard)
 
-        with self.as_current_task():
-            self.on_cancel()
+        try:
+            with self.as_current_task():
+                self.on_cancel()
+        finally:
+            self.__cleanup()
 
     def on_cancel(self):
         """Actions to perform when the task is cancelled.
@@ -669,7 +740,10 @@ class Task:
                     else:
                         self.__aio_background_tasks.discard(aio_task)
 
-        aio_task = asyncio.create_task(wrapper())
+        self.__background_task_counter += 1
+        aio_task = asyncio.create_task(
+            wrapper(), name=f"{self.name} background {self.__background_task_counter}"
+        )
 
         if error_handler and self.is_finished:
             return aio_task
@@ -688,6 +762,10 @@ class Task:
 
         while current is not None:
             for mro_item in type(event).mro():
+                sync_handlers = current.__event_sync_handlers.get(mro_item, ())
+                for handler in sync_handlers:
+                    handler(event)
+
                 cursor = current.__event_cursors.get(mro_item)
                 if cursor is None:
                     continue
@@ -714,6 +792,23 @@ class Task:
         cursor = self.__event_cursors[event_type]
         return TaskEventStream(cursor, where or (lambda _: True))
 
+    def sync_handle_events(
+        self,
+        event_type: type[T_TaskEvent],
+        handler: Callable[[T_TaskEvent], None],
+    ) -> None:
+        if event_type not in self.__event_sync_handlers:
+            self.__event_sync_handlers[event_type] = StableSet()
+
+        def wrapper(event: T_TaskEvent):
+            try:
+                with self.as_current_task():
+                    handler(event)
+            except BaseException as exc:
+                self.__failed(exc)
+
+        self.__event_sync_handlers[event_type].add(wrapper)
+
     def as_current_task(self) -> typing.ContextManager[None]:
         """Returns a context manager that temporarily overrides the current task.
 
@@ -721,6 +816,15 @@ class Task:
         current task.
         """
         return set_current_task(self)
+
+    @contextmanager
+    def block_finishing(self) -> typing.Iterator[None]:
+        self.__block_finish_counter += 1
+        try:
+            yield
+        finally:
+            self.__block_finish_counter -= 1
+            self.__check_finish()
 
 
 class RootTask(Task):
@@ -813,7 +917,7 @@ class TaskEvent:
     """
 
     def __post_init__(self) -> None:
-        self.__source = current_task()
+        self.__source = current_task_or_none()
 
     def __init_subclass__(cls) -> None:
         # This is a hack that prevents dataclasses from adding a __repr__ method without requiring
@@ -829,6 +933,8 @@ class TaskEvent:
     @property
     def source(self) -> Task:
         """The task that created and emitted this event."""
+        if self.__source is None:
+            raise TaskLoopError("Event created outside of a task")
         return self.__source
 
     def emit(self) -> None:
@@ -868,7 +974,11 @@ class TaskEventStream(typing.AsyncIterator[T_TaskEvent]):
             try:
                 cursor = await self.__cursor
             except asyncio.CancelledError:
+                aio_task = asyncio.current_task()
+                if aio_task and aio_task.done() and (aio_task.cancelled() or aio_task.exception()):
+                    raise
                 raise StopAsyncIteration
+
             result = cursor.event
             self.__cursor = cursor.tail
             if self.__where(result):
@@ -882,7 +992,7 @@ class TaskEventStream(typing.AsyncIterator[T_TaskEvent]):
     ) -> None:
         """Process events from this event stream using a background coroutine of the current task.
 
-        :param handler: A n async function that receives this event stream as argument.
+        :param handler: An async function that receives this event stream as argument.
         :param wait: Forwarded to `Task.background`. If set (the default), it will prevent the
             current task from finishing until the stream is exhausted.
         """
@@ -891,19 +1001,23 @@ class TaskEventStream(typing.AsyncIterator[T_TaskEvent]):
     def handle(self, handler: Callable[[T_TaskEvent], Awaitable[None] | None]) -> None:
         """Handle events from this event stream using a callback function.
 
-        The callback is executed in the context of the current task. Events emitted after the
-        current task finished do not invoke the callback. Note that an async handler can block the
-        processing of subsequent events.
+        The callback is executed in the context of the current task. While the callback is running,
+        the current task is prevented from finishing. Events emitted after the current task finished
+        do not invoke the callback. Note that an async handler can block the processing of
+        subsequent events.
 
         :param handler: An async or sync function that receives each event as argument.
         """
         handler = as_awaitable(handler)
 
+        task = current_task()
+
         async def stream_handler():
             async for event in self:
-                await handler(event)
+                with task.block_finishing():
+                    await handler(event)
 
-        current_task().background(stream_handler, wait=False)
+        task.background(stream_handler, wait=False)
 
 
 class DebugEvent(TaskEvent):

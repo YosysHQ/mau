@@ -14,7 +14,7 @@ def test_exit_event_success():
     did_run = False
 
     def main():
-        true_proc = tl.ProcessTask(["true"])
+        true_proc = tl.Process(["true"])
 
         def on_exit_event(event: tl.process.ExitEvent):
             nonlocal did_run
@@ -32,7 +32,7 @@ def test_exit_event_nonzero_returncode():
     did_run = False
 
     def main():
-        false_proc = tl.ProcessTask(["false"])
+        false_proc = tl.Process(["false"])
 
         def on_exit_event(event: tl.process.ExitEvent):
             nonlocal did_run
@@ -54,7 +54,7 @@ def test_exit_event_nonzero_returncode():
 
 def test_exit_event_failure():
     def main():
-        tl.ProcessTask(["false"])
+        tl.Process(["false"])
 
     with pytest.raises(tl.TaskFailed):
         tl.run_task_loop(main)
@@ -64,7 +64,7 @@ def test_output_events():
     output_lines: list[str] = []
 
     def main():
-        proc = tl.ProcessTask(["echo", "-e", r"hello world\na second line"])
+        proc = tl.Process(["echo", "-e", r"hello world\na second line"])
 
         async def handle_output(lines: AsyncIterable[tl.process.OutputEvent]):
             async for line_event in lines:
@@ -79,7 +79,7 @@ def test_output_events():
 
 def test_termination():
     async def main():
-        proc = tl.ProcessTask(["sleep", "10"])
+        proc = tl.Process(["sleep", "10"])
 
         await asyncio.sleep(0.1)
 
@@ -103,7 +103,7 @@ def test_cwd():
     temp_dir2 = tempfile.TemporaryDirectory()
 
     async def main():
-        proc = tl.ProcessTask(["pwd"])
+        proc = tl.Process(["pwd"])
 
         async def handle_output(lines: AsyncIterable[tl.process.OutputEvent]):
             async for line_event in lines:
@@ -113,14 +113,14 @@ def test_cwd():
 
         await proc.finished
 
-        proc = tl.ProcessTask(["pwd"], cwd=temp_dir.name)
+        proc = tl.Process(["pwd"], cwd=temp_dir.name)
         proc.events(tl.process.OutputEvent).process(handle_output)
 
         await proc.finished
 
         tl.process.ProcessContext.cwd = temp_dir2.name
 
-        proc = tl.ProcessTask(["pwd"])
+        proc = tl.Process(["pwd"])
         proc.events(tl.process.OutputEvent).process(handle_output)
 
         await proc.finished

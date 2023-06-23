@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import types
 from typing import Any, Generic, TypeVar
 from weakref import WeakKeyDictionary
 
@@ -136,7 +137,9 @@ def task_context_class(cls: type[T]) -> type[T]:
         except KeyError:
             setattr(cls, name, TaskContextDescriptor())
         else:
-            if not hasattr(default_or_descriptor, "__get__"):
+            if isinstance(default_or_descriptor, types.FunctionType) or not hasattr(
+                default_or_descriptor, "__get__"
+            ):
                 setattr(cls, name, TaskContextDescriptor(default_or_descriptor))
     return cls
 

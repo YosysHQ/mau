@@ -1,4 +1,4 @@
-from . import context, process
+from . import context, logging, process
 from ._task import (
     ChildAborted,
     ChildCancelled,
@@ -22,8 +22,14 @@ from ._task import (
 
 task_context = context.task_context
 
-ProcessTask = process.Process
+Process = process.Process
 ProcessEvent = process.ProcessEvent
+
+log = logging.log
+log_warning = logging.log_warning
+log_error = logging.log_error
+log_exception = logging.log_exception
+LogContext = logging.LogContext
 
 __all__ = [
     "Task",
@@ -35,7 +41,7 @@ __all__ = [
     "TaskLoopError",
     "DebugEvent",
     "TaskStateChange",
-    "ProcessTask",
+    "Process",
     "ProcessEvent",
     "task_context",
     "TaskAborted",
@@ -47,4 +53,9 @@ __all__ = [
     "ChildAborted",
     "ChildFailed",
     "ChildCancelled",
+    "log",
+    "log_warning",
+    "log_error",
+    "log_exception",
+    "LogContext",
 ]
