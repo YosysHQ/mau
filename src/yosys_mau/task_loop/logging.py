@@ -133,6 +133,9 @@ def log_error(*args: Any, cls: type[LogEvent] = LogEvent, raise_error: bool = Tr
     return event
 
 
+_already_logged: dict[BaseException, LoggedError] = dict()
+
+
 def log_exception(exception: BaseException, raise_error: bool = True) -> LoggedError:
     current = exception
     source = current_task_or_none()
@@ -143,6 +146,11 @@ def log_exception(exception: BaseException, raise_error: bool = True) -> LoggedE
 
     if isinstance(current, LoggedError):
         return current
+
+    try:
+        return _already_logged[current]
+    except KeyError:
+        pass
 
     current_msg = str(current)
 
@@ -158,6 +166,9 @@ def log_exception(exception: BaseException, raise_error: bool = True) -> LoggedE
         err = LoggedError(log_error(current_msg, raise_error=False))
 
     err.__cause__ = exception
+
+    _already_logged[current] = err
+
     if raise_error:
         raise err
     return err
