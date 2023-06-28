@@ -149,8 +149,12 @@ class ConfigParser:
         registry.append(parser_proto)
 
     def __init_subclass__(cls) -> None:
-        cls.__section_parser_protos = cls.__tmp_section_parser_protos
-        del cls.__tmp_section_parser_protos
+        try:
+            cls.__section_parser_protos = cls.__tmp_section_parser_protos
+        except AttributeError:
+            cls.__section_parser_protos = []
+        else:
+            del cls.__tmp_section_parser_protos
 
     def __section_parser_result__(self, proto: SectionParser[T]) -> T:
         """Returns the result of a section parser.
