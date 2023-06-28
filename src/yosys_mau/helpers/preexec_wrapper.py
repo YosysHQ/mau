@@ -49,7 +49,7 @@ if __name__ == "__main__":  # pragma: no cover
 
             # This should never be reached
 
-        exit(0)
+        sys.exit(0)
 
     os.wait()  # wait for the child to exit
 

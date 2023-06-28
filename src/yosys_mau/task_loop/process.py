@@ -6,10 +6,12 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
+import yosys_mau
+
 from . import job_server as job
-from . import preexec_wrapper
 from ._task import Task, TaskEvent
 from .context import InlineContextVar, TaskContextDescriptor, task_context
 
@@ -80,9 +82,36 @@ class _MonitorPipe:
         self.close_write()
 
 
-_preexec_wrapper_exe = [os.path.join(os.path.dirname(__file__), "preexec_wrapper")]
-if not os.path.exists(_preexec_wrapper_exe[0]):
-    _preexec_wrapper_exe = [sys.executable, preexec_wrapper.__file__]
+def _setup_preexec_wrapper() -> list[str]:
+    candidates: list[Path] = []
+    bin_candidates: list[Path] = []
+
+    for path in yosys_mau.__path__:
+        path = Path(path)
+        if path.is_dir():
+            build_dir = path.parent.parent / "build" / "lib" / "yosys_mau"
+            if build_dir.is_dir():
+                bin_candidates.append(build_dir)
+            candidates.append(path)
+
+    # If we have a native build of the C version, prefer that, it has almost no overhead
+    for path in [*bin_candidates, *candidates]:
+        native = path / "helpers" / "preexec_wrapper"
+        if native.is_file():
+            return [str(native)]
+
+    # Prefer to execute the wrapper as a script without loading site packages (-S) to slightly
+    # reduce the startup time
+    for path in candidates:
+        script = path / "helpers" / "preexec_wrapper.py"
+        if script.is_file():
+            return [sys.executable, "-S", str(script)]
+
+    # We can always execute the wrapper by using `-m`, but that's the slowest option
+    return [sys.executable, "-m", "yosys_mau.helpers.preexec_wrapper"]
+
+
+_preexec_wrapper_command = _setup_preexec_wrapper()
 
 
 class Process(Task):
@@ -134,7 +163,7 @@ class Process(Task):
             self.__monitor_pipe.inherit_read()
 
             wrapper = [
-                *_preexec_wrapper_exe,
+                *_preexec_wrapper_command,
                 str(self.__monitor_pipe.read),
                 absolute_path,
             ]
