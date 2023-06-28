@@ -116,12 +116,24 @@ def _setup_preexec_wrapper() -> list[str]:
 _preexec_wrapper_command = _setup_preexec_wrapper()
 
 
+class CalledProcessError(subprocess.CalledProcessError):
+    process: Process
+
+    def __init__(self, process: Process):
+        self.process = process
+        super().__init__(process.returncode, process.command)
+
+    def __str__(self) -> str:
+        return f"Command {self.process.cmd_string} returned non-zero exit status {self.returncode}"
+
+
 class Process(Task):
     """A task that runs and supervises a subprocess."""
 
     command: list[str]
 
     interact: bool
+    returncode: int
 
     __proc: asyncio.subprocess.Process | None
     __monitor_pipe: _MonitorPipe | None
@@ -158,20 +170,26 @@ class Process(Task):
     is the same as accessing `ProcessContext.cwd` in the context of this `Process` task.
     """
 
+    @property
+    def cmd_string(self) -> str:
+        cmd_string = shlex.join(self.command)
+
+        cwd = self.cwd
+
+        real_cwd = os.getcwd()
+        if cwd != real_cwd:
+            cmd_string = f"(cd {shlex.quote(str(cwd))} && {cmd_string})"
+
+        return cmd_string
+
     async def on_run(self) -> None:
         # TODO check what to do on Windows
         subprocess_args = job.global_client().subprocess_args()
         wrapper = []
 
-        cmd_string = shlex.join(self.command)
-
         cwd = ProcessContext.cwd
 
-        real_cwd = os.getcwd()
-        if self.cwd != real_cwd:
-            cmd_string = f"(cd {shlex.quote(str(cwd))} && {cmd_string})"
-
-        log(f"starting process {cmd_string}")
+        log(f"starting process {self.cmd_string}")
 
         if os.name == "posix":
             # On posix systems we use process groups to ensure that the spawned process cannot
@@ -243,7 +261,7 @@ class Process(Task):
 
         read_stderr_handle = self.background(read_stderr, wait=True)
 
-        returncode = await self.__proc.wait()
+        self.returncode = await self.__proc.wait()
 
         if self.__monitor_pipe:
             self.__monitor_pipe = None
@@ -253,11 +271,11 @@ class Process(Task):
         await read_stdout_handle
         await read_stderr_handle
 
-        log(f"finished (returncode={returncode})")
+        log(f"finished (returncode={self.returncode})")
 
-        ExitEvent(returncode).emit()
+        ExitEvent(self.returncode).emit()
 
-        self.on_exit(returncode)
+        self.on_exit(self.returncode)
 
     def __cleanup(self) -> None:
         if self.__monitor_pipe:
@@ -278,7 +296,7 @@ class Process(Task):
         non-zero return code. Override this to change this behavior.
         """
         if returncode:
-            raise subprocess.CalledProcessError(returncode, self.command)
+            raise CalledProcessError(self)
 
     @property
     def stdin(self) -> asyncio.StreamWriter:
