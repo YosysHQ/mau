@@ -19,6 +19,10 @@ from .context import task_context
 
 Level = Literal["debug", "info", "warning", "error"]
 
+levels = ["debug", "info", "warning", "error"]
+
+_level_order = {level: i for i, level in enumerate(levels)}
+
 
 @dataclass
 class LogEvent(TaskEvent):
@@ -80,7 +84,7 @@ def default_formatter(event: LogEvent):
         elif event.level == "error":
             formatted_lines.append(prefix + click.style(f"ERROR: {line}", fg="red"))
         else:
-            formatted_lines.append(prefix + event.msg)
+            formatted_lines.append(prefix + line)
     return "\n".join(formatted_lines)
 
 
@@ -91,6 +95,7 @@ class LogContext:
     workdir: str | None = None  # TODO eventually move this to a workdir handling module
     scope: str | None = None
     quiet: bool = False
+    level: Level = "info"
 
 
 def log(*args: Any, level: Level = "info", cls: type[LogEvent] = LogEvent) -> LogEvent:
@@ -109,6 +114,10 @@ def log(*args: Any, level: Level = "info", cls: type[LogEvent] = LogEvent) -> Lo
             click.echo(formatted, file=file, err=err, color=color)
 
     return event
+
+
+def log_debug(*args: Any, cls: type[LogEvent] = LogEvent) -> LogEvent:
+    return log(*args, level="debug", cls=cls)
 
 
 def log_warning(*args: Any, cls: type[LogEvent] = LogEvent) -> LogEvent:
@@ -161,6 +170,10 @@ def start_logging(
     file: IO[Any] | None = None, err: bool = False, color: bool | None = None
 ) -> None:
     def log_handler(event: LogEvent):
+        source_level = _level_order[event.source[LogContext].level]
+        event_level = _level_order[event.level]
+        if event_level < source_level:
+            return
         formatted = LogContext.log_format(event)
         click.echo(formatted, file=file, err=err, color=color)
 

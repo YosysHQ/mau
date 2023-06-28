@@ -26,6 +26,7 @@ Process = process.Process
 ProcessEvent = process.ProcessEvent
 
 log = logging.log
+log_debug = logging.log_debug
 log_warning = logging.log_warning
 log_error = logging.log_error
 log_exception = logging.log_exception
@@ -54,6 +55,7 @@ __all__ = [
     "ChildFailed",
     "ChildCancelled",
     "log",
+    "log_debug",
     "log_warning",
     "log_error",
     "log_exception",
