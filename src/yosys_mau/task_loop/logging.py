@@ -29,7 +29,7 @@ class LogEvent(TaskEvent):
     msg: str
     level: Level
 
-    workdir: str | None = field(init=False)
+    work_dir: str | None = field(init=False)
     scope: str | None = field(init=False)
 
     time: float = field(init=False)
@@ -37,7 +37,7 @@ class LogEvent(TaskEvent):
     def __post_init__(self):
         super().__post_init__()
         self.time = time.time()
-        self.workdir = LogContext.workdir
+        self.work_dir = LogContext.work_dir
         self.scope = LogContext.scope
 
 
@@ -67,8 +67,8 @@ def default_formatter(event: LogEvent):
     if LogContext.app_name:
         parts.append(f"{click.style(LogContext.app_name, fg='blue')} ")
     parts.append(f"{click.style(time_str, fg='green')} ")
-    if event.workdir:
-        parts.append(f"[{click.style(event.workdir, fg='blue')}] ")
+    if event.work_dir:
+        parts.append(f"[{click.style(event.work_dir, fg='blue')}] ")
     if event.scope:
         parts.append(f"{click.style(event.scope, fg='magenta')}: ")
 
@@ -92,7 +92,7 @@ def default_formatter(event: LogEvent):
 class LogContext:
     app_name: str | None = None
     log_format: Callable[[LogEvent], str] = default_formatter
-    workdir: str | None = None  # TODO eventually move this to a workdir handling module
+    work_dir: str | None = None  # TODO eventually move this to a workdir handling module
     scope: str | None = None
     quiet: bool = False
     level: Level = "info"
