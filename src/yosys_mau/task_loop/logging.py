@@ -133,7 +133,7 @@ def log_error(*args: Any, cls: type[LogEvent] = LogEvent, raise_error: bool = Tr
     return event
 
 
-_already_logged: dict[BaseException, LoggedError] = dict()
+_already_logged: dict[int, tuple[BaseException, LoggedError]] = {}
 
 
 def log_exception(exception: BaseException, raise_error: bool = True) -> LoggedError:
@@ -148,7 +148,9 @@ def log_exception(exception: BaseException, raise_error: bool = True) -> LoggedE
         return current
 
     try:
-        return _already_logged[current]
+        found_key, found_value = _already_logged[id(current)]
+        if found_key is current:
+            return found_value
     except KeyError:
         pass
 
@@ -167,7 +169,7 @@ def log_exception(exception: BaseException, raise_error: bool = True) -> LoggedE
 
     err.__cause__ = exception
 
-    _already_logged[current] = err
+    _already_logged[id(current)] = current, err
 
     if raise_error:
         raise err
