@@ -18,6 +18,7 @@ from ._options import (
 from ._sections import (
     ArgSection,
     ConfigParser,
+    FilesSection,
     PostprocessSection,
     RawSection,
     SectionContentsParser,
@@ -51,6 +52,7 @@ __all__ = [
     "SectionContentsParser",
     "RawSection",
     "StrSection",
+    "FilesSection",
     "ArgSection",
     "postprocess_section",
     "PostprocessSection",

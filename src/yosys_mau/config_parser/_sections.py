@@ -499,6 +499,24 @@ class StrSection(SectionContentsParser[str]):
 
 
 @dataclass(repr=False, eq=False)
+class FilesSection(SectionContentsParser["list[str]"]):
+    def parse(self) -> None:
+        matches = self.matching_sections(required=False, unique=False, arguments=False)
+
+        result: list[str] = []
+
+        for section in matches:
+            for line in section.contents.splitlines():
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                # TODO support some form of escaping
+                result.append(line)
+
+        self.result = result
+
+
+@dataclass(repr=False, eq=False)
 class ArgSection(SectionParser[typing.Mapping[A, T]]):
     """Section parser that handles section arguments and delegates to another section parser for the
     section contents. It uses a `ValueParser` to parse the argument value.
