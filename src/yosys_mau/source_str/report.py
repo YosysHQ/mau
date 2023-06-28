@@ -53,9 +53,8 @@ class Report:
     message: str
 
     def __str__(self) -> str:
-        out = [f"\nError: {self.message}\n"]
+        out = [f"{self.message}\n"]
 
-        print("uhuh", self.spans.close_gaps())
         for file, spans in self.spans.close_gaps().group_by_file().items():
             if file.content is None:
                 raise NotImplementedError
