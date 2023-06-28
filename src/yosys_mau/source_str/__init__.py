@@ -191,6 +191,17 @@ class SourceStr(str):
 
         return concat(inject_sep(iterable))
 
+    def as_plain_str(self) -> str:
+        """Return a copy of the string without source tracking information."""
+        return f"{self}{''}"
+
+
+def plain_str(string: str) -> str:
+    """Return a copy of the string without source tracking information."""
+    if isinstance(string, SourceStr):
+        return string.as_plain_str()
+    return string
+
 
 def concat(strings: Iterable[str]) -> str:
     """Source tracking concatenation of multiple strings.
