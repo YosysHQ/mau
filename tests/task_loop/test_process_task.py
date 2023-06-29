@@ -77,6 +77,64 @@ def test_output_events():
     assert output_lines == ["hello world\n", "a second line\n"]
 
 
+def test_output_events_sync():
+    output_lines: list[str] = []
+
+    def main():
+        proc = tl.Process(["echo", "-e", r"hello world\na second line"])
+
+        def handle_output(line_event: tl.process.OutputEvent):
+            output_lines.append(line_event.output)
+
+        proc.sync_handle_events(tl.process.OutputEvent, handle_output)
+
+    tl.run_task_loop(main)
+
+    assert output_lines == ["hello world\n", "a second line\n"]
+
+
+def test_input():
+    output_lines: list[str] = []
+
+    def main():
+        proc = tl.Process(["cat"], interact=True)
+
+        def handle_output(line_event: tl.process.OutputEvent):
+            output_lines.append(line_event.output)
+
+        proc.sync_handle_events(tl.process.OutputEvent, handle_output)
+
+        proc.write("hello world\n")
+        proc.write("a second line\n")
+        proc.close_stdin()
+
+    tl.run_task_loop(main)
+
+    assert output_lines == ["hello world\n", "a second line\n"]
+
+
+def test_input_late():
+    output_lines: list[str] = []
+
+    async def main():
+        proc = tl.Process(["cat"], interact=True)
+
+        def handle_output(line_event: tl.process.OutputEvent):
+            output_lines.append(line_event.output)
+
+        proc.sync_handle_events(tl.process.OutputEvent, handle_output)
+
+        await asyncio.sleep(0.1)
+
+        proc.write("hello world\n")
+        proc.write("a second line\n")
+        proc.close_stdin()
+
+    tl.run_task_loop(main)
+
+    assert output_lines == ["hello world\n", "a second line\n"]
+
+
 def test_termination():
     async def main():
         proc = tl.Process(["sleep", "10"])

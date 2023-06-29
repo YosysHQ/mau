@@ -42,6 +42,10 @@ class TaskLoopError(RuntimeError):
 
 
 def current_task() -> Task:
+    """Return the currently active task.
+
+    :raises TaskLoopError: if no task is currently active
+    """
     try:
         return _current_task.get()
     except LookupError:
@@ -49,6 +53,7 @@ def current_task() -> Task:
 
 
 def current_task_or_none() -> Task | None:
+    """Return the currently active task or None if no task is active."""
     try:
         return _current_task.get()
     except LookupError:
@@ -103,10 +108,6 @@ class TaskLoop:
         global_task_loop = self
 
         async def wrapper():
-            # aio_task = asyncio.current_task()
-            # assert aio_task
-            # aio_task.set_name("task loop")
-
             if handle_sigint:
                 asyncio.get_event_loop().add_signal_handler(signal.SIGINT, self._handle_sigint)
             job.global_client()  # early setup of the job server client
@@ -153,7 +154,13 @@ def run_task_loop(
 
 
 class ContextProxy(Generic[T]):
+    """Provides access to on object using a specific task as current task."""
+
     def __init__(self, task: Task, wrapped: T):
+        """
+        :param task: The task to use as current task when accessing the wrapped object.
+        :param wrapped: The object to wrap.
+        """
         object.__setattr__(self, "__ContextProxy_task", task)
         object.__setattr__(self, "__ContextProxy_wrapped", wrapped)
 
@@ -224,8 +231,13 @@ class Task:
     Defaults to `True`.
     """
 
-    def __getitem__(self, context: T) -> T:
-        return ContextProxy(self, context)  # type: ignore
+    def __getitem__(self, object: T) -> T:
+        """Wraps the given object in a proxy that performs all attribute accesses as if they were
+        done with this task as current task.
+
+        This is primarily intended to be used with ``task_context`` objects.
+        """
+        return ContextProxy(self, object)  # type: ignore
 
     @property
     def use_lease(self) -> bool:
@@ -488,11 +500,10 @@ class Task:
 
         found = None
 
-        if handler := self.__error_handlers.get(task):
-            found = handler
-            return
-
         if handler := self.__error_handlers.get(None):
+            found = handler
+
+        if handler := self.__error_handlers.get(task):
             found = handler
 
         if found is not None:
@@ -797,6 +808,14 @@ class Task:
         event_type: type[T_TaskEvent],
         handler: Callable[[T_TaskEvent], None],
     ) -> None:
+        """Register a synchronous handler for events emitted by this task or its children.
+
+        The synchronous handler will be called before the ``emit`` call of the event returns. The
+        handler itself runs in the context of the current task during registration.
+
+        :param event_type: The type of events to handle, use `TaskEvent` to handle all events.
+        :param handler: The handler to call for each event.
+        """
         if event_type not in self.__event_sync_handlers:
             self.__event_sync_handlers[event_type] = StableSet()
 
@@ -819,6 +838,11 @@ class Task:
 
     @contextmanager
     def block_finishing(self) -> typing.Iterator[None]:
+        """Returns a context manager that blocks the task from finishing.
+
+        This is useful in in `background` coroutines that do not have ``wait`` set, but temporarily
+        need to prevent the task from finishing.
+        """
         self.__block_finish_counter += 1
         try:
             yield

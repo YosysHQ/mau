@@ -7,7 +7,7 @@ import signal
 
 def job_server_helper(
     server_read_fd: int, server_write_fd: int, request_fd: int, response_fd: int
-) -> None:
+) -> None:  # pragma: no cover (covered but not detected by coverage)
     """Helper process to handle blocking job server pipes."""
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     pending = 0
@@ -50,7 +50,7 @@ def job_server_helper(
     os.close(server_write_fd)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover (covered but not detected by coverage)
     import sys
 
     assert len(sys.argv) == 5

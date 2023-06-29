@@ -6,7 +6,8 @@ Running Subprocesses as Task
 
 .. autoclass:: Process
    :show-inheritance:
-   :members: __init__, on_exit
+   :members: __init__, on_exit, shell_command,
+         stdin, write, close_stdin, log_output
 
 Context Variables
 -----------------

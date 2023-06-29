@@ -124,7 +124,9 @@ class CalledProcessError(subprocess.CalledProcessError):
         super().__init__(process.returncode, process.command)
 
     def __str__(self) -> str:
-        return f"Command {self.process.cmd_string} returned non-zero exit status {self.returncode}"
+        return (
+            f"Command {self.process.shell_command} returned non-zero exit status {self.returncode}"
+        )
 
 
 class Process(Task):
@@ -171,7 +173,11 @@ class Process(Task):
     """
 
     @property
-    def cmd_string(self) -> str:
+    def shell_command(self) -> str:
+        """The command as a string that can be executed in a shell.
+
+        This includes changing the working directory (in a sub-shell) if necessary. This is intended
+        for log output that can be copy-pasted into a shell to manually re-run the command."""
         cmd_string = shlex.join(self.command)
 
         cwd = self.cwd
@@ -189,7 +195,7 @@ class Process(Task):
 
         cwd = ProcessContext.cwd
 
-        log(f"starting process {self.cmd_string}")
+        log(f"starting process {self.shell_command}")
 
         if os.name == "posix":
             # On posix systems we use process groups to ensure that the spawned process cannot
@@ -300,6 +306,12 @@ class Process(Task):
 
     @property
     def stdin(self) -> asyncio.StreamWriter:
+        """The stdin stream of the process.
+
+        Note that this is only available for interactive processes and only while the process is
+        running. In particular, after creating the `Process` task, the process is not yet running.
+        Use `write` if you need to send data to the process before it starts.
+        """
         if self.__proc is None:
             raise RuntimeError("stdin is only available while the process is running")
         stdin = self.__proc.stdin
@@ -308,6 +320,13 @@ class Process(Task):
         return stdin
 
     def write(self, data: str) -> None:
+        """Write data to the stdin stream of the process.
+
+        This is only available for interactive processes.
+
+        Data written before the process starts is buffered and sent to the process as soon as it
+        does.
+        """
         data_bytes = data.encode()
         if not self.__process_started:
             self.__startup_buffer.append(data_bytes)
@@ -315,6 +334,11 @@ class Process(Task):
         self.stdin.write(data_bytes)
 
     def close_stdin(self) -> None:
+        """Close the stdin stream of the process.
+
+        When this is called before the process starts, it is buffered and the stream is closed
+        directly after writing the already buffered data after the process starts.
+        """
         if not self.__process_started:
             self.__startup_buffer.append(None)
             return
@@ -326,6 +350,7 @@ class Process(Task):
             stdin.close()
 
     def log_output(self) -> None:
+        """Log the output of the process."""
         with self.as_current_task():
 
             def handler(event: OutputEvent):

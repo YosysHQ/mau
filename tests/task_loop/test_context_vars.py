@@ -68,6 +68,40 @@ def test_global_override():
     assert order == [1, 1, 2]
 
 
+def test_global_override_context_proxy():
+    order: list[int] = []
+
+    @tl.task_context
+    class SomeContext:
+        some_var: int = 0
+
+    def main():
+        def on_task1():
+            tl.root_task()[SomeContext].some_var = 1
+            order.append(SomeContext.some_var)
+            del tl.root_task()[SomeContext].some_var
+
+        def on_task2():
+            order.append(SomeContext.some_var)
+            SomeContext.some_var = 3
+            assert tl.root_task()[SomeContext].some_var == 0
+            tl.root_task()[SomeContext].some_var = 2
+
+        def on_task3():
+            order.append(SomeContext.some_var)
+
+        task1 = tl.Task(on_run=on_task1)
+        task2 = tl.Task(on_run=on_task2)
+        task3 = tl.Task(on_run=on_task3)
+
+        task2.depends_on(task1)
+        task3.depends_on(task2)
+
+    tl.run_task_loop(main)
+
+    assert order == [1, 0, 2]
+
+
 def test_local_override_has_priority_over_global_override():
     order: list[int] = []
 
