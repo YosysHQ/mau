@@ -60,9 +60,13 @@ class Backtrace(TaskEvent):
         return f"{self.source}: exception:\n{click.style(backtrace, fg='red')}"
 
 
+def default_time_formatter(t: float) -> str:
+    tm = time.localtime(t)
+    return f"{tm.tm_hour:02d}:{tm.tm_min:02d}:{tm.tm_sec:02d}"
+
+
 def default_formatter(event: LogEvent):
-    tm = time.localtime(event.time)
-    time_str = f"{tm.tm_hour:02d}:{tm.tm_min:02d}:{tm.tm_sec:02d}"
+    time_str = LogContext.time_format(event.time)
     parts: list[str] = []
     if LogContext.app_name:
         parts.append(f"{click.style(LogContext.app_name, fg='blue')} ")
@@ -92,6 +96,7 @@ def default_formatter(event: LogEvent):
 class LogContext:
     app_name: str | None = None
     log_format: Callable[[LogEvent], str] = default_formatter
+    time_format: Callable[[float], str] = default_time_formatter
     work_dir: str | None = None  # TODO eventually move this to a workdir handling module
     scope: str | None = None
     quiet: bool = False

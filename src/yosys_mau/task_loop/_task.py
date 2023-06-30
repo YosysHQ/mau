@@ -429,6 +429,15 @@ class Task:
         """
         self.__error_handlers[task] = handler
 
+    def handle_error(self, handler: Callable[[BaseException], None]) -> None:
+        """Register an error handler in the current task that handles failure or cancellation of
+        this task.
+
+        Calling ``task.handle_error(handler)`` is equivalent to
+        ``current_task().set_error_handler(task, handler)``.
+        """
+        current_task().set_error_handler(self, handler)
+
     def __add_child(self, task: Task) -> None:
         assert self.state == "running", "children can only be added to a running tasks"
         self.__children.add(task)
