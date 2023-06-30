@@ -165,7 +165,6 @@ class Server:
             else:
                 self.read_fd, self.write_fd = os.pipe()
                 if os.getenv("YOSYS_JOBSERVER") == "nonblocking":
-                    print("nonblocking mode")
                     os.set_blocking(self.read_fd, False)
                 os.write(self.write_fd, b"*" * (job_count - 1))
                 self.makeflags = [
@@ -196,7 +195,7 @@ class Client:
         self._acquired_slots: list[bytes] = []
         self._pending_leases: list[weakref.ReferenceType[Lease]] = []
 
-        self._registered_with_asyncio = False
+        self._registered_with_asyncio = None
         self._poll_fd: int
 
         self._job_server: Server | None = None
@@ -320,9 +319,6 @@ class Client:
             self._helper_process.wait()
 
     def request_lease(self) -> Lease:
-        if not self._registered_with_asyncio and hasattr(self, "_poll_fd"):
-            self._registered_with_asyncio = True
-            asyncio.get_running_loop().add_reader(self._poll_fd, self.poll)
         pending = Lease(self)
 
         if self._local_slots > 0:
@@ -332,8 +328,21 @@ class Client:
             self._pending_leases.append(weakref.ref(pending))
             if self._helper_process:
                 os.write(self.request_write_fd, b"!")
+            self._register_poll()
 
         return pending
+
+    def _register_poll(self):
+        loop = asyncio.get_running_loop()
+        if self._registered_with_asyncio is not loop and hasattr(self, "_poll_fd"):
+            self._registered_with_asyncio = loop
+            loop.add_reader(self._poll_fd, self.poll)
+
+    def _unregister_poll(self):
+        if self._registered_with_asyncio:
+            loop = self._registered_with_asyncio
+            self._registered_with_asyncio = None
+            loop.remove_reader(self._poll_fd)
 
     def __return_lease__(self):
         if self._acquired_slots:
@@ -361,8 +370,7 @@ class Client:
 
     def poll(self) -> None:
         if not (self._helper_process or self._has_pending_leases()):
-            asyncio.get_running_loop().remove_reader(self._poll_fd)
-            self._registered_with_asyncio = False
+            self._unregister_poll()
             return
 
         while self._helper_process or self._has_pending_leases():
@@ -371,8 +379,7 @@ class Client:
             except BlockingIOError:
                 break
             if not token:
-                asyncio.get_running_loop().remove_reader(self._poll_fd)
-                self._registered_with_asyncio = False
+                self._unregister_poll()
                 raise RuntimeError("job server is gone")
 
             self._got_token(token)

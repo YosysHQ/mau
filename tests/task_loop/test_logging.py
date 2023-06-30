@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+from dataclasses import dataclass
 
 import pytest
 import yosys_mau.task_loop as tl
@@ -227,4 +228,30 @@ def test_exception_logging_task_failure_dedup_2():
 
     assert log_output.getvalue().splitlines() == [
         "12:34:56 ERROR: division by zero",
+    ]
+
+
+def test_debug_event_log():
+    log_output = io.StringIO()
+
+    @dataclass
+    class ExampleEvent(tl.DebugEvent):
+        value: int
+
+    ExampleEvent.__qualname__ = "ExampleEvent"
+
+    def main():
+        tl.logging.start_debug_event_logging(file=log_output)
+
+        tl.Task(on_run=lambda: ExampleEvent(1).emit(), name="task")
+
+    tl.run_task_loop(main)
+
+    assert log_output.getvalue().splitlines() == [
+        "task: None -> preparing",
+        "task: preparing -> pending",
+        "task: pending -> running",
+        "task: ExampleEvent(value=1)",
+        "task: running -> waiting",
+        "task: waiting -> done",
     ]

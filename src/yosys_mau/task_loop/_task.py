@@ -115,7 +115,12 @@ class TaskLoop:
             RootTask(on_run=on_run)
             self.root_task.name = "root"
 
-            await self.root_task.finished
+            try:
+                await self.root_task.finished
+            except BaseException as exc:
+                # Raising cancellations across asyncio.run() doesn't preserve the exact exception,
+                # doing this does.
+                return exc
 
             # Some __del__ implementations in the stdlib expect the event loop to be still running
             # and cause ignored exception warnings when they are cycle collected after the event
@@ -123,21 +128,15 @@ class TaskLoop:
             gc.collect()
 
         try:
-            asyncio.run(wrapper())
+            exception = asyncio.run(wrapper())
+            if exception is not None:
+                raise exception
         finally:
             global_task_loop = None
 
     def _handle_sigint(self) -> None:
-        try:
-            if self.root_task.is_finished:
-                for task in asyncio.all_tasks():
-                    print("# Cancelling task:", task.get_name())
-                for task in asyncio.all_tasks():
-                    task.cancel()
-            else:
-                self.root_task.cancel()
-        except BaseException:
-            raise KeyboardInterrupt from None
+        self.root_task.cancel()
+        asyncio.get_event_loop().remove_signal_handler(signal.SIGINT)
 
 
 def run_task_loop(
@@ -223,6 +222,7 @@ class Task:
     __lease: job.Lease | None
 
     __cancelled_by: Task | None
+    __cancellation_cause: BaseException | None
 
     discard: bool
     """If set to, the task will be discarded (automatically cancelled) when the last of the
@@ -329,6 +329,7 @@ class Task:
         on_prepare: Callable[[Self], Awaitable[None] | None]
         | Callable[[], Awaitable[None] | None]
         | None = None,
+        name: str | None = None,
     ):
         """The constructor creates a new task as child task of the current task and schedule it to
         run in the current ask loop.
@@ -367,6 +368,7 @@ class Task:
         self.__event_cursors = {}
         self.__event_sync_handlers = {}
         self.__cancelled_by = None
+        self.__cancellation_cause = None
         self.__block_finish_counter = 0
 
         self.discard = True
@@ -386,7 +388,7 @@ class Task:
 
             self.__parent.__add_child(self)
 
-        self.name = self.__class__.__name__
+        self.name = self.__class__.__name__ if name is None else name
 
         self.__aio_main_task = asyncio.create_task(self.__task_main(), name=f"{self.name} main")
 
@@ -523,7 +525,7 @@ class Task:
             return
 
         if isinstance(exception, asyncio.CancelledError):
-            asyncio.get_event_loop().call_soon(self.__discard_via, task)
+            self.__discard_via(task, cause=exception)
         else:
             self.__failed(exception)
 
@@ -593,8 +595,12 @@ class Task:
             self.__finished.exception()
         self.__change_state("failed")
 
-        for child in self.__children:
-            child.__cancel(discard=True)
+        if self.__children:
+            failed = ParentFailed(self)
+            failed.__cause__ = exc
+
+            for child in self.__children:
+                child.__cancel(discard=True, cause=exc)
 
         self.__cleanup()
 
@@ -626,7 +632,7 @@ class Task:
         try:
             await asyncio.shield(self.__started)
         except asyncio.CancelledError:
-            raise TaskCancelled(self) from None
+            raise TaskCancelled(self) from self.__cancellation_cause
         except BaseException as exc:
             raise TaskFailed(self) from exc
 
@@ -639,7 +645,7 @@ class Task:
         try:
             await asyncio.shield(self.__finished)
         except asyncio.CancelledError:
-            raise TaskCancelled(self) from None
+            raise TaskCancelled(self) from self.__cancellation_cause
         except BaseException as exc:
             raise TaskFailed(self) from exc
 
@@ -671,14 +677,16 @@ class Task:
         self.__cancelled_by = current_task_or_none()
         self.__cancel(discard=False)
 
-    def __discard_via(self, task: Task) -> None:
+    def __discard_via(self, task: Task, cause: BaseException | None = None) -> None:
         if task.__cancelled_by is self:
             return
-        self.__cancel(discard=True)
+        self.__cancel(discard=True, cause=cause)
 
-    def __cancel(self, discard: bool = False) -> None:
+    def __cancel(self, discard: bool = False, cause: BaseException | None = None) -> None:
         if self.is_finished:
             return
+
+        self.__cancellation_cause = cause
         if not self.__started.done():
             self.__started.cancel()
         if not self.__finished.done():
@@ -686,8 +694,11 @@ class Task:
 
         self.__change_state("discarded" if discard else "cancelled")
 
-        for child in self.__children:
-            child.__cancel(discard=discard)
+        if self.__children:
+            cancelled = ParentCancelled(self)
+            cancelled.__cause__ = cause
+            for child in self.__children:
+                child.__cancel(discard=discard, cause=cause)
 
         try:
             with self.as_current_task():
@@ -938,6 +949,20 @@ class ChildCancelled(ChildAborted, TaskCancelled):
             return f"Child task {self.task} cancelled"
         else:
             return f"Top-level task {self.task} cancelled"
+
+
+class ParentFailed(TaskCancelled):
+    """Exception caused by a parent task failing."""
+
+    def __str__(self) -> str:
+        return f"Parent task {self.task} failed"
+
+
+class ParentCancelled(TaskCancelled):
+    """Exception caused by a parent task being cancelled."""
+
+    def __str__(self) -> str:
+        return f"Parent task {self.task} cancelled"
 
 
 @dataclass

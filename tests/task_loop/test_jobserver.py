@@ -6,6 +6,7 @@ import subprocess
 import sys
 
 import pytest
+import yosys_mau.task_loop as tl
 import yosys_mau.task_loop.job_server as job
 
 
@@ -80,32 +81,52 @@ def outer_process():
 
 
 def inner_process():
-    asyncio.run(inner_async())
-
-
-async def waiter(client: job.Client, stats: list[int], id: int) -> None:
-    lease = client.request_lease()
-    await lease
-    stats[0] += 1
-    stats[1] = max(stats[1], stats[0])
-    print(f"waiter {id} started")
-    await asyncio.sleep(0.05)
-    print(f"waiter {id} done")
-    stats[0] -= 1
-    stats[2] += 1
-    del lease
-
-
-async def inner_async():
     job_count = int(os.environ["MAU_TEST_JOB_COUNT"])
-    client = job.Client(job_count)
+    client = job.global_client(job_count)
 
     stats = [0, 0, 0]
 
-    tasks = [asyncio.create_task(waiter(client, stats, i)) for i in range(10)]
+    async def waiter_main():
+        stats[0] += 1
+        stats[1] = max(stats[1], stats[0])
+        await asyncio.sleep(0.15)
+        stats[0] -= 1
+        stats[2] += 1
 
-    for task in tasks:
-        await task
+    def new_waiter(i: int):
+        task = tl.Task(on_run=waiter_main, name=f"waiter{i}")
+        task.use_lease = True
+        return task
+
+    def main():
+        for i in range(10):
+            new_waiter(i)
+
+    tl.run_task_loop(main)
+
+    assert stats[0] == 0
+    assert stats[1] == job_count
+    assert stats[2] == 10
+
+    stats = [0, 0, 0]
+
+    async def raw_waiter() -> None:
+        lease = client.request_lease()
+        await lease
+        stats[0] += 1
+        stats[1] = max(stats[1], stats[0])
+        await asyncio.sleep(0.15)
+        stats[0] -= 1
+        stats[2] += 1
+        del lease
+
+    async def inner_async():
+        tasks = [asyncio.create_task(raw_waiter()) for _ in range(10)]
+
+        for task in tasks:
+            await task
+
+    asyncio.run(inner_async())
 
     assert stats[0] == 0
     assert stats[1] == job_count
