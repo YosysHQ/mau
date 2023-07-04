@@ -277,11 +277,12 @@ class Process(Task):
         await read_stdout_handle
         await read_stderr_handle
 
-        log(f"finished (returncode={self.returncode})")
-
         ExitEvent(self.returncode).emit()
 
-        self.on_exit(self.returncode)
+        try:
+            self.on_exit(self.returncode)
+        finally:
+            log(f"finished (returncode={self.returncode})")
 
     def __cleanup(self) -> None:
         if self.__monitor_pipe:

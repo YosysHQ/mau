@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 import traceback
 from dataclasses import dataclass, field
@@ -8,6 +9,7 @@ from typing import IO, Any, Callable, Literal
 import click
 
 from ._task import (
+    InterruptEvent,
     TaskEvent,
     TaskFailed,
     TaskLoopError,
@@ -183,11 +185,19 @@ def log_exception(exception: BaseException, raise_error: bool = True) -> LoggedE
 
 _root_log_files: list[tuple[IO[Any] | None, bool, bool | None]] = []
 
+_no_color = bool(os.getenv("NO_COLOR", ""))
+
 
 def start_logging(
     file: IO[Any] | None = None, err: bool = False, color: bool | None = None
 ) -> None:
+    if _no_color:
+        color = False
+
     def log_handler(event: LogEvent):
+        if file and file.closed:
+            remove_log_handler()
+            return
         source_level = _level_order[event.source[LogContext].level]
         event_level = _level_order[event.level]
         if event_level < source_level:
@@ -195,7 +205,15 @@ def start_logging(
         formatted = LogContext.log_format(event)
         click.echo(formatted, file=file, err=err, color=color)
 
-    current_task().sync_handle_events(LogEvent, log_handler)
+    remove_log_handler = current_task().sync_handle_events(LogEvent, log_handler)
+
+    def interrupt_handler(event: InterruptEvent):
+        if file and file.closed:
+            remove_interrupt_handler()
+            return
+        click.secho("<Interrupted>", file=file, err=err, color=color, fg="yellow")
+
+    remove_interrupt_handler = current_task().sync_handle_events(InterruptEvent, interrupt_handler)
 
     _root_log_files.append((file, err, color))
 

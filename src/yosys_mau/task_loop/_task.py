@@ -135,6 +135,8 @@ class TaskLoop:
             global_task_loop = None
 
     def _handle_sigint(self) -> None:
+        with self.root_task.as_current_task():
+            InterruptEvent().emit()
         self.root_task.cancel()
         asyncio.get_event_loop().remove_signal_handler(signal.SIGINT)
 
@@ -794,7 +796,7 @@ class Task:
         while current is not None:
             for mro_item in type(event).mro():
                 sync_handlers = current.__event_sync_handlers.get(mro_item, ())
-                for handler in sync_handlers:
+                for handler in list(sync_handlers):
                     handler(event)
 
                 cursor = current.__event_cursors.get(mro_item)
@@ -827,7 +829,7 @@ class Task:
         self,
         event_type: type[T_TaskEvent],
         handler: Callable[[T_TaskEvent], None],
-    ) -> None:
+    ) -> Callable[[], None]:
         """Register a synchronous handler for events emitted by this task or its children.
 
         The synchronous handler will be called before the ``emit`` call of the event returns. The
@@ -835,6 +837,7 @@ class Task:
 
         :param event_type: The type of events to handle, use `TaskEvent` to handle all events.
         :param handler: The handler to call for each event.
+        :return: A callable that can be called to unregister the handler.
         """
         if event_type not in self.__event_sync_handlers:
             self.__event_sync_handlers[event_type] = StableSet()
@@ -847,6 +850,8 @@ class Task:
                 self.__failed(exc)
 
         self.__event_sync_handlers[event_type].add(wrapper)
+
+        return lambda: self.__event_sync_handlers[event_type].discard(wrapper)
 
     def as_current_task(self) -> typing.ContextManager[None]:
         """Returns a context manager that temporarily overrides the current task.
@@ -1078,10 +1083,12 @@ class TaskEventStream(typing.AsyncIterator[T_TaskEvent]):
         task.background(stream_handler, wait=False)
 
 
+class InterruptEvent(TaskEvent):
+    """Event emitted when the task loop is interrupted by a signal."""
+
+
 class DebugEvent(TaskEvent):
     """Base class for debug events emitted by the task loop itself."""
-
-    pass
 
 
 @dataclass(repr=False)
