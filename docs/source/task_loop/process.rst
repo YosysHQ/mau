@@ -1,6 +1,9 @@
 Running Subprocesses as Task
 ============================
 
+In the mau task loop, subprocesses run as tasks.
+The output of a subprocess is made available using events.
+It's possible to launch subprocesses by creating instances of either `Process` or of a user defined subclass of `Process`.
 
 .. automodule:: yosys_mau.task_loop.process
 

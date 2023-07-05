@@ -31,16 +31,11 @@ class LogEvent(TaskEvent):
     msg: str
     level: Level
 
-    work_dir: str | None = field(init=False)
-    scope: str | None = field(init=False)
-
     time: float = field(init=False)
 
     def __post_init__(self):
         super().__post_init__()
         self.time = time.time()
-        self.work_dir = LogContext.work_dir
-        self.scope = LogContext.scope
 
 
 class LoggedError(Exception):
@@ -68,15 +63,20 @@ def default_time_formatter(t: float) -> str:
 
 
 def default_formatter(event: LogEvent):
+    try:
+        context = event.source[LogContext]
+    except TaskLoopError:
+        context = LogContext
+
     time_str = LogContext.time_format(event.time)
     parts: list[str] = []
-    if LogContext.app_name:
-        parts.append(f"{click.style(LogContext.app_name, fg='blue')} ")
+    if context.app_name:
+        parts.append(f"{click.style(context.app_name, fg='blue')} ")
     parts.append(f"{click.style(time_str, fg='green')} ")
-    if event.work_dir:
-        parts.append(f"[{click.style(event.work_dir, fg='blue')}] ")
-    if event.scope:
-        parts.append(f"{click.style(event.scope, fg='magenta')}: ")
+    if context.work_dir:
+        parts.append(f"[{click.style(context.work_dir, fg='blue')}] ")
+    if context.scope:
+        parts.append(f"{click.style(context.scope, fg='magenta')}: ")
 
     prefix = "".join(parts)
 
@@ -96,16 +96,71 @@ def default_formatter(event: LogEvent):
 
 @task_context
 class LogContext:
+    """Context variables to customize logging behavior.
+
+    When the default formatter formats a log message, the values of the emitting task are used. This
+    allows setting different values of `work_dir`, `scope`, etc. for different tasks.
+    """
+
     app_name: str | None = None
-    log_format: Callable[[LogEvent], str] = default_formatter
-    time_format: Callable[[float], str] = default_time_formatter
+    """The default formatter will prefix all log messages with this if set."""
+
     work_dir: str | None = None  # TODO eventually move this to a workdir handling module
+    """Working directory to display as part of log messages."""
+
     scope: str | None = None
+    """Scope prefix to display as part of log messages."""
+
     quiet: bool = False
+    """Downgrade all info level messages to debug level messages.
+
+    When set, the downgrading happens before the `LogEvent` is emitted.
+    """
+
     level: Level = "info"
+    """The minimum log level to display/log.
+
+    This does not stop `LogEvent` of smaller levels to be emitted. It is only used to filter which
+    messages to actually print/log. Hence, it does not affect any user installed `LogEvent`
+    handlers.
+
+    When logging to multiple destinations, currently there is no way to specify this per
+    destination.
+    """
+
+    log_format: Callable[[LogEvent], str] = default_formatter
+    """The formatter used to format log messages.
+
+    Note that unlike the preceding context variables, this is looked up by the log writing task, not
+    the emitting task.
+    """
+
+    time_format: Callable[[float], str] = default_time_formatter
+    """The formatter used by the default formatter to format the time of log messages.
+
+    This is provided so it can be overridden with a fixed timestamp when running tests that check
+    the log output.
+
+    Like `log_format` this is looked up by the log writing task, not the emitting task.
+    """
 
 
 def log(*args: Any, level: Level = "info", cls: type[LogEvent] = LogEvent) -> LogEvent:
+    """Produce log output.
+
+    This is done by emitting a `LogEvent`.
+
+    When the task loop is not running anymore or there is no current task, it will directly write to
+    the log files registered with the root task.
+
+    :param args: The message to log, will be converted to strings and joined with spaces.
+    :param level: The log level, one of "debug", "info", "warning" or "error". Defaults to "info".
+        To log at a different level you can also use `log_debug`, `log_warning` or `log_error`. Note
+        that `log_error` will, by default, also raise an exception.
+    :param cls: Customize the event class used. This allows user defined event handlers to only
+        listen to specific types of log messages.
+    :return: The emitted event.
+    """
     msg = " ".join(str(arg) for arg in args)
 
     if LogContext.quiet and level == "info":
@@ -124,10 +179,18 @@ def log(*args: Any, level: Level = "info", cls: type[LogEvent] = LogEvent) -> Lo
 
 
 def log_debug(*args: Any, cls: type[LogEvent] = LogEvent) -> LogEvent:
+    """Produce debug log output.
+
+    This calls `log` with ``level="debug"``.
+    """
     return log(*args, level="debug", cls=cls)
 
 
 def log_warning(*args: Any, cls: type[LogEvent] = LogEvent) -> LogEvent:
+    """Produce debug log output.
+
+    This calls `log` with ``level="warning"``.
+    """
     return log(*args, level="warning", cls=cls)
 
 
@@ -144,6 +207,12 @@ def log_error(*args: Any, cls: type[LogEvent] = LogEvent, raise_error: Literal[F
 
 
 def log_error(*args: Any, cls: type[LogEvent] = LogEvent, raise_error: bool = True) -> LogEvent:
+    """Produce error log output and optionally raise a `LoggedError`.
+
+    This calls `log` with ``level="error"`` to produce the log output.
+
+    :param raise_error: Whether to raise a `LoggedError` exception. Defaults to ``True``.
+    """
     event = log(*args, level="error", cls=cls)
 
     if raise_error:
@@ -156,6 +225,15 @@ _already_logged: dict[int, tuple[BaseException, LoggedError]] = {}
 
 
 def log_exception(exception: BaseException, raise_error: bool = True) -> LoggedError:
+    """Produce error log output for an exception and optionally raise a `LoggedError`.
+
+    If the exception was already logged, it will not be logged again. When raising a `LoggedError`,
+    it will have the passed exception as cause, unless it already is a `LoggedError` in which case
+    it will be re-raised directly.
+
+    :param raise_error: Whether to raise a `LoggedError` exception. Defaults to ``True``.
+    :return: The `LoggedError` exception that would be raised if ``raise_error`` were ``True``.
+    """
     current = exception
     source = current_task_or_none()
 
@@ -164,11 +242,15 @@ def log_exception(exception: BaseException, raise_error: bool = True) -> LoggedE
         current = current.__cause__
 
     if isinstance(current, LoggedError):
+        if raise_error:
+            raise current
         return current
 
     try:
         found_key, found_value = _already_logged[id(current)]
         if found_key is current:
+            if raise_error:
+                raise found_value
             return found_value
     except KeyError:
         pass
@@ -203,6 +285,18 @@ _no_color = bool(os.getenv("NO_COLOR", ""))
 def start_logging(
     file: IO[Any] | None = None, err: bool = False, color: bool | None = None
 ) -> None:
+    """Start logging all log events reaching the current task.
+
+    Can be called multiple times to log to multiple destinations.
+
+    It is possible to stop logging by closing the file object passed to this function.
+
+    :param file: The file to log to. Defaults to `sys.stdout` or `sys.stderr` depending on ``err``.
+    :param err: Whether to log to `sys.stderr` instead of `sys.stdout`. Defaults to ``False``.
+    :param color: Whether to use colors. Defaults to ``True`` for terminals and ``False`` otherwise.
+        When the ``NO_COLOR`` environment variable is set, this will be ignored and no colors will
+        be used.
+    """
     if _no_color:
         color = False
 
@@ -238,6 +332,22 @@ def start_debug_event_logging(
     color: bool | None = None,
     include_log: bool = False,
 ):
+    if _no_color:
+        color = False
+    """Start logging all events reaching the current task.
+
+    This will log all events, including debug events generated by the task loop itself as well as
+    any events used internally by the application. This can be very verbose but also very useful for
+    debugging.
+
+    :param file: The file to log to. Defaults to `sys.stdout` or `sys.stderr` depending on `err`.
+    :param err: Whether to log to `sys.stderr` instead of `sys.stdout`. Defaults to ``False``.
+    :param color: Whether to use colors. Defaults to ``True`` for terminals and ``False`` otherwise.
+        When the ``NO_COLOR`` environment variable is set, this will be ignored and no colors will
+        be used.
+
+    """
+
     def debug_event_log_handler(event: TaskEvent):
         if include_log or not isinstance(event, LogEvent):
             click.secho(repr(event), file=file, err=err, color=color, fg="cyan")
@@ -245,11 +355,14 @@ def start_debug_event_logging(
     current_task().sync_handle_events(TaskEvent, debug_event_log_handler)
 
 
-def root_error_handler(error: BaseException):
-    raise log_exception(error)
-
-
 def install_root_error_handler():
+    """Installs a fallback error handler in the root task that logs an exception and re-raises it,
+    aborting the root task and therefore the entire task loop.
+    """
+
+    def root_error_handler(error: BaseException):
+        log_exception(error)
+
     task = current_task()
     assert task is root_task()
     task.set_error_handler(None, root_error_handler)

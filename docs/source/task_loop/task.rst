@@ -1,6 +1,8 @@
 Task Management
 ===============
 
+See :doc:`the task loop overview <index>` for general information about the task loop.
+
 .. automodule:: yosys_mau.task_loop
 
 

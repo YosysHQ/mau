@@ -57,6 +57,10 @@ html_theme_options = {
     },
 }
 
+# -- Options for autosectionlabel --------------------------------------------
+
+autosectionlabel_prefix_document = True
+
 # -- Options for autodoc -----------------------------------------------------
 
 autodoc_typehints = "description"

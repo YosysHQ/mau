@@ -11,6 +11,7 @@ This page provides a general overview of the task loop and its concepts, see ind
    task
    event
    context
+   logging
    process
 
 

@@ -1016,7 +1016,12 @@ class TaskEventCursor(typing.Generic[T_TaskEvent]):
 
 
 class TaskEventStream(typing.AsyncIterator[T_TaskEvent]):
-    """An async iterator that yields events emitted by a task or its children."""
+    """An async iterator that yields events emitted by a task or its children.
+
+    Usually obtained by calling `Task.events`.
+
+    To handle events synchronously, use `Task.sync_handle_events` instead of this.
+    """
 
     __cursor: asyncio.Future[TaskEventCursor[T_TaskEvent]]
     __where: Callable[[T_TaskEvent], bool]
