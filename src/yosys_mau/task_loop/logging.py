@@ -4,7 +4,7 @@ import os
 import time
 import traceback
 from dataclasses import dataclass, field
-from typing import IO, Any, Callable, Literal
+from typing import IO, Any, Callable, Literal, NoReturn, overload
 
 import click
 
@@ -129,6 +129,18 @@ def log_debug(*args: Any, cls: type[LogEvent] = LogEvent) -> LogEvent:
 
 def log_warning(*args: Any, cls: type[LogEvent] = LogEvent) -> LogEvent:
     return log(*args, level="warning", cls=cls)
+
+
+@overload
+def log_error(
+    *args: Any, cls: type[LogEvent] = LogEvent, raise_error: Literal[True] = True
+) -> NoReturn:
+    ...
+
+
+@overload
+def log_error(*args: Any, cls: type[LogEvent] = LogEvent, raise_error: Literal[False]) -> LogEvent:
+    ...
 
 
 def log_error(*args: Any, cls: type[LogEvent] = LogEvent, raise_error: bool = True) -> LogEvent:
