@@ -15,3 +15,6 @@ Built-in Events
 .. autoclass:: TaskStateChange
    :show-inheritance:
    :members:
+
+.. autoclass:: TaskLoopInterrupted
+   :show-inheritance:

@@ -9,10 +9,10 @@ from typing import IO, Any, Callable, Literal
 import click
 
 from ._task import (
-    InterruptEvent,
     TaskEvent,
     TaskFailed,
     TaskLoopError,
+    TaskLoopInterrupted,
     current_task,
     current_task_or_none,
     root_task,
@@ -207,13 +207,15 @@ def start_logging(
 
     remove_log_handler = current_task().sync_handle_events(LogEvent, log_handler)
 
-    def interrupt_handler(event: InterruptEvent):
+    def interrupt_handler(event: TaskLoopInterrupted):
         if file and file.closed:
             remove_interrupt_handler()
             return
         click.secho("<Interrupted>", file=file, err=err, color=color, fg="yellow")
 
-    remove_interrupt_handler = current_task().sync_handle_events(InterruptEvent, interrupt_handler)
+    remove_interrupt_handler = current_task().sync_handle_events(
+        TaskLoopInterrupted, interrupt_handler
+    )
 
     _root_log_files.append((file, err, color))
 

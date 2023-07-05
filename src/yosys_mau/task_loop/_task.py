@@ -136,7 +136,7 @@ class TaskLoop:
 
     def _handle_sigint(self) -> None:
         with self.root_task.as_current_task():
-            InterruptEvent().emit()
+            TaskLoopInterrupted().emit()
         self.root_task.cancel()
         asyncio.get_event_loop().remove_signal_handler(signal.SIGINT)
 
@@ -1083,7 +1083,7 @@ class TaskEventStream(typing.AsyncIterator[T_TaskEvent]):
         task.background(stream_handler, wait=False)
 
 
-class InterruptEvent(TaskEvent):
+class TaskLoopInterrupted(TaskEvent):
     """Event emitted when the task loop is interrupted by a signal."""
 
 
