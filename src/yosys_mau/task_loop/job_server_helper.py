@@ -3,13 +3,25 @@ from __future__ import annotations
 import os
 import select
 import signal
+from typing import Any
 
 
 def job_server_helper(
     server_read_fd: int, server_write_fd: int, request_fd: int, response_fd: int
 ) -> None:  # pragma: no cover (covered but not detected by coverage)
     """Helper process to handle blocking job server pipes."""
+
+    def handle_sigusr1(*args: Any):
+        # Since Python doesn't allow user code to handle EINTR anymore, we replace the
+        # jobserver fd with an fd at EOF to interrupt a blocking read in a way that
+        # cannot lose any read data
+        r, w = os.pipe()
+        os.close(w)
+        os.dup2(r, server_read_fd)
+        os.close(r)
+
     signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGUSR1, handle_sigusr1)
     pending = 0
     while True:
         try:

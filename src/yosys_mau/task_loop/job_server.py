@@ -5,6 +5,7 @@ import atexit
 import os
 import select
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
@@ -301,6 +302,9 @@ class Client:
         if self._helper_process:
             # Closing the request pipe singals the helper that we want to exit
             os.close(self.request_write_fd)
+
+            # Additionally we send a signal to interrupt a blocking read within the helper
+            self._helper_process.send_signal(signal.SIGUSR1)
 
             # The helper might have been in the process of sending us some tokens, which
             # we still need to return
