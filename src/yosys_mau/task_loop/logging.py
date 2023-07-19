@@ -257,6 +257,11 @@ def log_exception(exception: BaseException, raise_error: bool = True) -> LoggedE
 
     current_msg = str(current)
 
+    if type(current).__module__ == "builtins":
+        short_trace = traceback.format_tb(current.__traceback__, limit=-1)
+        short_trace = "".join(short_trace)
+        current_msg = f"{type(current).__name__}: {current_msg}\n{short_trace}"
+
     if current.__traceback__:
         if source:
             with source.as_current_task():
