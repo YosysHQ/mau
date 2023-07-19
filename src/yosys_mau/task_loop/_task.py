@@ -108,12 +108,16 @@ class TaskLoop:
         global_task_loop = self
 
         async def wrapper():
+            from . import priority
+
             if handle_sigint:
                 asyncio.get_event_loop().add_signal_handler(signal.SIGINT, self._handle_sigint)
-            job.global_client()  # early setup of the job server client
+            job_client = job.global_client()  # early setup of the job server client
 
             RootTask(on_run=on_run)
             self.root_task.name = "root"
+
+            priority.JobPriorities.scheduler = priority.PriorityScheduler(job_client)
 
             try:
                 await self.root_task.finished
@@ -467,10 +471,12 @@ class Task:
             self.__lease = None
             return
         if self.__use_lease:
+            from . import priority
+
             # TODO wrap the raw lease in some logic that prefers passing leases within the hierarchy
             # before returning them to the job server
             if self.__lease is None:
-                self.__lease = job.global_client().request_lease()
+                self.__lease = priority.JobPriorities.scheduler.request_lease()
             if not self.__lease.ready:
                 self.__lease.add_ready_callback(self.__check_start)
                 return

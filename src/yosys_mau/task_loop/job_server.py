@@ -85,9 +85,17 @@ def process_job_server_environment() -> None:
             inherited_other_makeflags.append(flag)
 
 
+class Scheduler(typing.Protocol):
+    def __return_lease__(self) -> None:
+        ...
+
+    def request_lease(self) -> Lease:
+        ...
+
+
 class Lease:
-    def __init__(self, client: Client):
-        self._client = client
+    def __init__(self, scheduler: Scheduler):
+        self._scheduler = scheduler
         self._is_ready = False
         self._is_done = False
 
@@ -95,7 +103,7 @@ class Lease:
 
     def return_lease(self) -> None:
         if self._is_ready and not self._is_done:
-            self._client.__return_lease__()
+            self._scheduler.__return_lease__()
 
         self._is_done = True
 
