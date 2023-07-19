@@ -8,6 +8,14 @@ import pytest
 import yosys_mau.task_loop as tl
 
 
+class CustomException(Exception):
+    pass
+
+
+def raise_exception():
+    raise CustomException("error message")
+
+
 def fixed_time(t: float) -> str:
     return "12:34:56"
 
@@ -140,14 +148,14 @@ def test_exception_logging():
         tl.logging.start_logging(file=log_output)
 
         try:
-            _unused = 1 / 0
+            raise_exception()
         except BaseException as exc:
             tl.log_exception(exc, raise_error=False)
 
     tl.run_task_loop(main)
 
     assert log_output.getvalue().splitlines() == [
-        "12:34:56 ERROR: division by zero",
+        "12:34:56 ERROR: error message",
     ]
 
 
@@ -159,7 +167,7 @@ def test_exception_logging_task_failure():
         tl.logging.start_logging(file=log_output)
 
         def failing_task():
-            _unused = 1 / 0
+            raise_exception()
 
         task = tl.Task(on_run=failing_task)
 
@@ -171,7 +179,7 @@ def test_exception_logging_task_failure():
     tl.run_task_loop(main)
 
     assert log_output.getvalue().splitlines() == [
-        "12:34:56 ERROR: division by zero",
+        "12:34:56 ERROR: error message",
     ]
 
 
@@ -184,7 +192,7 @@ def test_exception_logging_task_failure_dedup():
 
         def failing_task():
             try:
-                _unused = 1 / 0
+                raise_exception()
             except BaseException as exc:
                 tl.log_exception(exc, raise_error=False)
                 tl.log_exception(exc, raise_error=False)
@@ -200,7 +208,7 @@ def test_exception_logging_task_failure_dedup():
     tl.run_task_loop(main)
 
     assert log_output.getvalue().splitlines() == [
-        "12:34:56 ERROR: division by zero",
+        "12:34:56 ERROR: error message",
     ]
 
 
@@ -213,7 +221,7 @@ def test_exception_logging_task_failure_dedup_2():
 
         def failing_task():
             try:
-                _unused = 1 / 0
+                raise_exception()
             except BaseException as exc:
                 tl.log_exception(exc)
 
@@ -227,7 +235,7 @@ def test_exception_logging_task_failure_dedup_2():
     tl.run_task_loop(main)
 
     assert log_output.getvalue().splitlines() == [
-        "12:34:56 ERROR: division by zero",
+        "12:34:56 ERROR: error message",
     ]
 
 
