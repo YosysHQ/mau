@@ -148,12 +148,14 @@ class Process(Task):
         *,
         cwd: os.PathLike[Any] | str | None = None,
         interact: bool = False,
+        path: str | None = None
     ):
         super().__init__()
         self.use_lease = True
         self.name = command[0]
         self.command = command
         self.interact = interact
+        self.pathvar = path
 
         self.__monitor_pipe = None
         self.__startup_buffer = []
@@ -191,6 +193,9 @@ class Process(Task):
     async def on_run(self) -> None:
         # TODO check what to do on Windows
         subprocess_args = job.global_client().subprocess_args()
+        if self.pathvar:
+            log(f"replacing PATH variable")
+            subprocess_args["env"]["PATH"] = self.pathvar
         wrapper = []
 
         cwd = ProcessContext.cwd
