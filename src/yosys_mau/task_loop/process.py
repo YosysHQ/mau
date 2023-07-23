@@ -148,7 +148,7 @@ class Process(Task):
         *,
         cwd: os.PathLike[Any] | str | None = None,
         interact: bool = False,
-        path: str | None = None
+        path: str | None = None,
     ):
         super().__init__()
         self.use_lease = True
