@@ -194,7 +194,6 @@ class Process(Task):
         # TODO check what to do on Windows
         subprocess_args = job.global_client().subprocess_args()
         if self.pathvar:
-            log(f"replacing PATH variable")
             subprocess_args["env"]["PATH"] = self.pathvar
         wrapper = []
 
