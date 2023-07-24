@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import types
-from typing import Any, Generic, TypeVar
+import typing
+from typing import Any, Generic, Iterator, TypeVar
 from weakref import WeakKeyDictionary
 
 from ._task import Task, current_task_or_none
 
+K = TypeVar("K")
+V = TypeVar("V")
 T = TypeVar("T")
 
 
@@ -173,3 +176,84 @@ def task_context(cls: type[T]) -> T:
         AsInstance.__doc__ = cls.__doc__
 
     return AsInstance  # type: ignore
+
+
+class TaskContextDict(typing.MutableMapping[K, V]):
+    __data: WeakKeyDictionary[Task, dict[K, V | _MISSING_TYPE]]
+    __default: typing.MutableMapping[K, V]
+    __task: Task | None
+
+    def __init__(self, default: typing.MutableMapping[K, V] | None = None) -> None:
+        self.__data = WeakKeyDictionary()
+        if default is None:
+            self.__default = {}
+        else:
+            self.__default = default
+        self.__task = None
+
+    def __getitem__(self, key: K) -> V:
+        cursor = self.__task
+        while cursor is not None:
+            try:
+                value = self.__data.get(cursor, {})[key]
+            except KeyError:
+                cursor = cursor.parent
+            else:
+                if isinstance(value, _MISSING_TYPE):
+                    raise KeyError(repr(key))
+        return self.__default[key]
+
+    def __setitem__(self, key: K, value: V) -> None:
+        if self.__task is None:
+            self.__default[key] = value
+        else:
+            self.__data.setdefault(self.__task, {})[key] = value
+
+    def __delitem__(self, key: K) -> None:
+        if self.__task is None:
+            del self.__default[key]
+        else:
+            self[key]
+            self.__data.setdefault(self.__task, {})[key] = MISSING
+
+    def inherit(self, key: K) -> None:
+        if self.__task is None:
+            self.__default.pop(key, None)
+        else:
+            self.__data.get(self.__task, {}).pop(key, None)
+
+    def as_dict(self) -> dict[K, V]:
+        cursor = self.__task
+        result: dict[K, V] = {}
+        assigned: set[K] = set()
+        while cursor is not None:
+            for key, value in self.__data.get(cursor, {}).items():
+                if key not in assigned:
+                    assigned.add(key)
+                    if not isinstance(value, _MISSING_TYPE):
+                        result[key] = value
+            cursor = cursor.parent
+        for key, value in self.__default.items():
+            if key not in assigned:
+                result[key] = value
+        return result
+
+    def __iter__(self) -> Iterator[K]:
+        return iter(self.as_dict())
+
+    def __len__(self) -> int:
+        return len(self.as_dict())
+
+    def __repr__(self) -> str:
+        task_repr = "" if self.__task is None else f" <viewed from task {self.__task}>"
+        return f"TaskContextDict({self.as_dict()!r}{task_repr})"
+
+    def view_from_task(self, task: Task | None) -> TaskContextDict[K, V]:
+        view: TaskContextDict[K, V] = TaskContextDict()
+        view.__data = self.__data
+        view.__default = self.__default
+        view.__task = task
+        return view
+
+    def __get__(self, instance: Any, owner: type) -> TaskContextDict[K, V]:
+        return self.view_from_task(current_task_or_none())

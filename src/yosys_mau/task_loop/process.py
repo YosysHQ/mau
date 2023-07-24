@@ -14,7 +14,7 @@ import yosys_mau
 
 from . import job_server as job
 from ._task import Task, TaskEvent
-from .context import InlineContextVar, TaskContextDescriptor, task_context
+from .context import InlineContextVar, TaskContextDescriptor, TaskContextDict, task_context
 from .logging import log
 
 if os.name == "posix":
@@ -48,6 +48,8 @@ class ProcessContext:
     Changing the default value outside of a task loop changes the working directory using
     `os.chdir`.
     """
+
+    env: TaskContextDict[str, str] = TaskContextDict(os.environ)
 
 
 @dataclass
@@ -147,6 +149,7 @@ class Process(Task):
         command: list[str],
         *,
         cwd: os.PathLike[Any] | str | None = None,
+        env: dict[str, str] | None = None,
         interact: bool = False,
     ):
         super().__init__()
@@ -164,6 +167,10 @@ class Process(Task):
         else:
             # Take a snapshot at the time of task creation
             self.cwd = self.cwd
+
+        if env is not None:
+            self.env.update(env)
+
         self.__proc: asyncio.subprocess.Process | None = None
 
     cwd: InlineContextVar[os.PathLike[Any] | str] = InlineContextVar(ProcessContext, "cwd")
@@ -171,6 +178,8 @@ class Process(Task):
     Inlined context variable for the working directory for newly spawned processes. Accessing this
     is the same as accessing `ProcessContext.cwd` in the context of this `Process` task.
     """
+
+    env: InlineContextVar[TaskContextDict[str, str]] = InlineContextVar(ProcessContext, "env")
 
     @property
     def shell_command(self) -> str:
@@ -190,7 +199,7 @@ class Process(Task):
 
     async def on_run(self) -> None:
         # TODO check what to do on Windows
-        subprocess_args = job.global_client().subprocess_args()
+        subprocess_args = job.global_client().subprocess_args(env=self.env.as_dict())
         wrapper = []
 
         cwd = ProcessContext.cwd
@@ -203,7 +212,9 @@ class Process(Task):
 
             # See preexec_wrapper.py for details.
 
-            absolute_path = shutil.which(self.command[0])
+            absolute_path = shutil.which(
+                self.command[0], path=subprocess_args["env"].get("PATH", "")
+            )
 
             if absolute_path is None:
                 raise FileNotFoundError(f"No such file or directory: {self.command[0]!r}")
