@@ -24,6 +24,10 @@ T_TaskEvent = typing.TypeVar("T_TaskEvent", bound="TaskEvent")
 Args = ParamSpec("Args")
 
 _current_task: ContextVar[Task] = ContextVar(f"{__name__}._current_task")
+_in_sync_handler: ContextVar[bool] = ContextVar(f"{__name__}._in_sync_handler", default=False)
+_cancel_on_sync_handler_exit: ContextVar[bool] = ContextVar(
+    f"{__name__}._in_sync_handler", default=False
+)
 
 
 @contextmanager
@@ -230,12 +234,17 @@ class Task:
     __cancelled_by: Task | None
     __cancellation_cause: BaseException | None
 
+    __restart_counter: int
+    __in_sync_handler: bool
+
     discard: bool
-    """If set to, the task will be discarded (automatically cancelled) when the last of the
+    """If set to `True`, the task will be discarded (automatically cancelled) when the last of the
     tasks depending on it finishes (by failure or cancellation).
 
     Defaults to `True`.
     """
+
+    restart_on_new_children: bool
 
     def __getitem__(self, object: T) -> T:
         """Wraps the given object in a proxy that performs all attribute accesses as if they were
@@ -376,8 +385,10 @@ class Task:
         self.__cancelled_by = None
         self.__cancellation_cause = None
         self.__block_finish_counter = 0
+        self.__restart_counter = 0
 
         self.discard = True
+        self.restart_on_new_children = False
 
         if isinstance(self, RootTask):
             self.__parent = None
@@ -386,15 +397,13 @@ class Task:
             task_loop().root_task = self
         else:
             self.__parent = current_task()
-
-            assert (
-                self.__parent.state == "running"
-            ), "cannot create child tasks before the parent task is running"
-            # TODO allow this but make children block for their parent having started
-
+            if self.__parent.__state == "done" and self.__parent.restart_on_new_children:
+                self.__parent.__restart()
             self.__parent.__add_child(self)
 
         self.name = self.__class__.__name__ if name is None else name
+
+        self.configure_task()
 
         self.__aio_main_task = asyncio.create_task(self.__task_main(), name=f"{self.name} main")
 
@@ -414,7 +423,10 @@ class Task:
         ), "cannot add dependencies after task has started"
         self.__dependencies.add(task)
         if task.state in ("preparing", "pending", "running"):
-            callback: Callable[[Any], None] = lambda _: self.__dependency_finished(task)
+            restart_counter = task.__restart_counter
+            callback: Callable[[Any], None] = lambda _: self.__dependency_finished(
+                task, restart_counter
+            )
             task.__finished.add_done_callback(callback)
             self.__pending_dependencies[task] = callback
             task.__reverse_dependencies.add(self)
@@ -446,26 +458,63 @@ class Task:
         """
         current_task().set_error_handler(self, handler)
 
+    def __restart(self) -> None:
+        assert self.__state == "done"
+
+        self.__restart_counter += 1
+
+        self.__finished = asyncio.Future()
+        self.__started = asyncio.Future()
+        self.__cleaned_up = False
+
+        self.__change_state("preparing")
+
+        if self.__parent is not None:
+            self.__parent.__add_child(self)
+
+        self.__reverse_dependencies = StableSet()
+
+        self.__aio_main_task = asyncio.create_task(self.__task_main(), name=f"{self.name} main")
+
     def __add_child(self, task: Task) -> None:
-        assert self.state == "running", "children can only be added to a running tasks"
+        assert self.state in (
+            "preparing",
+            "pending",
+            "running",
+            "waiting",
+        ), f"cannot create child tasks in state {self.state}"
         self.__children.add(task)
         if task.state in ("preparing", "pending", "running"):
-            callback: Callable[[Any], None] = lambda _: self.__child_finished(task)
+            restart_counter = task.__restart_counter
+            callback: Callable[[Any], None] = lambda _: self.__child_finished(task, restart_counter)
             task.__finished.add_done_callback(callback)
             self.__pending_children[task] = callback
 
-    def __dependency_finished(self, task: Task) -> None:
-        self.__pending_dependencies.pop(task)
-        self.__propagate_failure(task, (DependencyFailed, DependencyCancelled))
-        self.__check_start()
+    def __dependency_finished(self, task: Task, restart_counter: int) -> None:
+        if task.__restart_counter == restart_counter:
+            self.__pending_dependencies.pop(task)
+            self.__propagate_failure(task, (DependencyFailed, DependencyCancelled))
+            self.__check_start()
+        elif self in task.__reverse_dependencies:
+            # The task was restarted and the dependency was added again, so ignore that it finished
+            # previously, we'll get notified again
+            pass
+        else:
+            # The task was restarted, so it didn't fail, but the dependency wasn't re-added, so
+            # don't propagate failure
+            self.__pending_dependencies.pop(task)
+            self.__check_start()
 
-    def __child_finished(self, task: Task) -> None:
-        self.__pending_children.pop(task)
-        self.__propagate_failure(task, (ChildFailed, ChildCancelled))
-        self.__check_finish()
+    def __child_finished(self, task: Task, restart_counter: int) -> None:
+        if task.__restart_counter == restart_counter:
+            self.__pending_children.pop(task)
+            self.__propagate_failure(task, (ChildFailed, ChildCancelled))
+            self.__check_finish()
 
     def __check_start(self) -> None:
         if self.state != "pending":
+            return
+        if self.__parent is not None and self.__parent.state in ("preparing", "pending"):
             return
         if self.__pending_dependencies:
             self.__lease = None
@@ -473,8 +522,6 @@ class Task:
         if self.__use_lease:
             from . import priority
 
-            # TODO wrap the raw lease in some logic that prefers passing leases within the hierarchy
-            # before returning them to the job server
             if self.__lease is None:
                 self.__lease = priority.JobPriorities.scheduler.request_lease()
             if not self.__lease.ready:
@@ -525,6 +572,9 @@ class Task:
         if handler := self.__error_handlers.get(task):
             found = handler
 
+        if exception is not None:
+            ExceptionPropagation(task, exception, found is not None).emit()
+
         if found is not None:
             try:
                 found(exception)
@@ -540,17 +590,21 @@ class Task:
     async def __task_main(self) -> None:
         __prev_task = _current_task.set(self)
         try:
-            TaskStateChange(None, self.__state).emit()
+            if not self.__restart_counter:
+                TaskStateChange(None, self.__state).emit()
             await self.on_prepare()
             self.__change_state("pending")
             self.__check_start()
             await self.started
             self.__change_state("running")
+            for child in self.__children:
+                child.__check_start()
             await self.on_run()
-            self.__lease = None
-            self.__change_state("waiting")
-            self.__check_finish()
+            if not self.__finished.done():
+                self.__change_state("waiting")
+                self.__check_finish()
             await self.finished
+            self.__lease = None
             self.__change_state("done")
         except Exception as exc:
             self.__failed(exc)
@@ -585,7 +639,10 @@ class Task:
 
         self.__aio_main_task.cancel()
         if asyncio.current_task() == self.__aio_main_task:
-            raise asyncio.CancelledError()
+            if _in_sync_handler.get():
+                _cancel_on_sync_handler_exit.set(True)
+            else:
+                raise asyncio.CancelledError()
 
     def __failed(self, exc: BaseException | None) -> None:
         if exc is None or self.is_finished:
@@ -611,6 +668,9 @@ class Task:
                 child.__cancel(discard=True, cause=exc)
 
         self.__cleanup()
+
+    def configure_task(self):
+        pass
 
     async def on_prepare(self) -> None:
         """Actions to perform right after the task is created, before scheduling it to run.
@@ -802,6 +862,7 @@ class Task:
         while current is not None:
             for mro_item in type(event).mro():
                 sync_handlers = current.__event_sync_handlers.get(mro_item, ())
+
                 for handler in list(sync_handlers):
                     handler(event)
 
@@ -849,11 +910,17 @@ class Task:
             self.__event_sync_handlers[event_type] = StableSet()
 
         def wrapper(event: T_TaskEvent):
+            token = _in_sync_handler.set(True)
             try:
                 with self.as_current_task():
                     handler(event)
             except BaseException as exc:
                 self.__failed(exc)
+            finally:
+                _in_sync_handler.reset(token)
+                if not _in_sync_handler.get() and _cancel_on_sync_handler_exit.get():
+                    _cancel_on_sync_handler_exit.set(False)
+                    raise asyncio.CancelledError()
 
         self.__event_sync_handlers[event_type].add(wrapper)
 
@@ -880,6 +947,12 @@ class Task:
         finally:
             self.__block_finish_counter -= 1
             self.__check_finish()
+
+
+class TaskGroup(Task):
+    def configure_task(self):
+        self.discard = False
+        self.restart_on_new_children = True
 
 
 class RootTask(Task):
@@ -1111,3 +1184,17 @@ class TaskStateChange(DebugEvent):
 
     def __repr__(self) -> str:
         return f"{self.source}: {self.previous_state} -> {self.state}"
+
+
+@dataclass
+class ExceptionPropagation(DebugEvent):
+    exc_source: Task
+    exc: BaseException
+    handler: bool
+
+    def __repr__(self) -> str:
+        handled = " handled" if self.handler else ""
+        return (
+            f"{self.source}:{handled} {self.exc.__class__.__name__} exception "
+            f"from {self.exc_source}: {self.exc}"
+        )
