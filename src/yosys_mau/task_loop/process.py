@@ -289,6 +289,9 @@ class Process(Task):
             self.__monitor_pipe = None
         elif self.__proc is not None:
             self.__proc.terminate()
+        if self.__proc is not None:
+            asyncio.get_running_loop().create_task(self.__proc.wait())
+            self.__proc = None
 
     def on_cancel(self) -> None:
         self.__cleanup()
