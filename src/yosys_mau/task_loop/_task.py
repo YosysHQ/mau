@@ -245,6 +245,11 @@ class Task:
     """
 
     restart_on_new_children: bool
+    """If set to `True`, new children can be added to the task even after it successfully finished.
+    When that happens the task is restarted, i.e. its state is set to ``pending`` again.
+
+    Defaults to `False`.
+    """
 
     def __getitem__(self, object: T) -> T:
         """Wraps the given object in a proxy that performs all attribute accesses as if they were
@@ -403,7 +408,8 @@ class Task:
 
         self.name = self.__class__.__name__ if name is None else name
 
-        self.configure_task()
+        with self.as_current_task():
+            self.configure_task()
 
         self.__aio_main_task = asyncio.create_task(self.__task_main(), name=f"{self.name} main")
 
@@ -572,8 +578,7 @@ class Task:
         if handler := self.__error_handlers.get(task):
             found = handler
 
-        if exception is not None:
-            ExceptionPropagation(task, exception, found is not None).emit()
+        ExceptionPropagation(task, exception, found is not None).emit()
 
         if found is not None:
             try:
@@ -670,6 +675,10 @@ class Task:
         self.__cleanup()
 
     def configure_task(self):
+        """Invoked on construction with the task set as current task.
+
+        Can be used to override initialization in subclasses.
+        """
         pass
 
     async def on_prepare(self) -> None:
@@ -950,6 +959,11 @@ class Task:
 
 
 class TaskGroup(Task):
+    """A task used to group child tasks.
+
+    This is normal `Task` initialized with `discard` set to `False` and `restart_on_new_children`
+    """
+
     def configure_task(self):
         self.discard = False
         self.restart_on_new_children = True

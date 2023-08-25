@@ -14,9 +14,16 @@ from . import context, job_server
 
 @context.task_context
 class JobPriorities:
+    """Task context to configure how job server leases are scheduled across tasks."""
+
     scheduler: job_server.Scheduler
+    """Active scheduler for obtaining job server leases."""
 
     priority: tuple[int, ...] = ()
+    """Priority with which to request a job server lease when using the `PriorityScheduler`.
+
+    The lexicographically largest priority is scheduled first.
+    """
 
 
 @dataclasses.dataclass(eq=False)
@@ -45,6 +52,11 @@ class _PriorityItem:
 
 
 class PriorityScheduler(job_server.Scheduler):
+    """Scheduler for job server leases that uses a priority queue to schedule tasks.
+
+    It uses the current `JobPriorities.priority` task context to determine the priority when
+    requesting a lease.
+    """
     def __init__(self, parent: job_server.Scheduler):
         self._parent: job_server.Scheduler = parent
         self._pending_leases: list[_PriorityItem] = []
