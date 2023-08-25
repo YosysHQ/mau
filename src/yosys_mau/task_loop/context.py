@@ -179,6 +179,10 @@ def task_context(cls: type[T]) -> T:
 
 
 class TaskContextDict(typing.MutableMapping[K, V]):
+    """Descriptor for a task context variable that is a mapping where each value is scoped
+    individually.
+    """
+
     __data: WeakKeyDictionary[Task, dict[K, V | _MISSING_TYPE]]
     __default: typing.MutableMapping[K, V]
     __task: Task | None

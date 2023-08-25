@@ -50,6 +50,7 @@ class ProcessContext:
     """
 
     env: TaskContextDict[str, str] = TaskContextDict(os.environ)
+    """The environment for newly spawned processes."""
 
 
 @dataclass

@@ -57,6 +57,7 @@ class PriorityScheduler(job_server.Scheduler):
     It uses the current `JobPriorities.priority` task context to determine the priority when
     requesting a lease.
     """
+
     def __init__(self, parent: job_server.Scheduler):
         self._parent: job_server.Scheduler = parent
         self._pending_leases: list[_PriorityItem] = []
