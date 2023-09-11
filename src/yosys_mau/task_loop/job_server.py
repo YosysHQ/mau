@@ -85,9 +85,17 @@ def process_job_server_environment() -> None:
             inherited_other_makeflags.append(flag)
 
 
+class Scheduler(typing.Protocol):
+    def __return_lease__(self) -> None:
+        ...
+
+    def request_lease(self) -> Lease:
+        ...
+
+
 class Lease:
-    def __init__(self, client: Client):
-        self._client = client
+    def __init__(self, scheduler: Scheduler):
+        self._scheduler = scheduler
         self._is_ready = False
         self._is_done = False
 
@@ -95,7 +103,7 @@ class Lease:
 
     def return_lease(self) -> None:
         if self._is_ready and not self._is_done:
-            self._client.__return_lease__()
+            self._scheduler.__return_lease__()
 
         self._is_done = True
 
@@ -174,8 +182,11 @@ class Server:
                     f"--jobserver-fds={self.read_fd},{self.write_fd}",
                 ]
 
-    def subprocess_args(self) -> dict[str, typing.Any]:
-        env = os.environ.copy()
+    def subprocess_args(self, env: dict[str, str] | None = None) -> dict[str, typing.Any]:
+        if env is None:
+            env = os.environ.copy()
+        else:
+            env = env.copy()
         env["MAKEFLAGS"] = shlex.join([*inherited_other_makeflags, *self.makeflags])
         if self.have_pipe:
             return {"pass_fds": [self.read_fd, self.write_fd], "env": env}
@@ -396,11 +407,14 @@ class Client:
 
         self.__return_lease__()
 
-    def subprocess_args(self) -> dict[str, typing.Any]:
+    def subprocess_args(self, env: dict[str, str] | None = None) -> dict[str, typing.Any]:
         if self._job_server:
-            return self._job_server.subprocess_args()
+            return self._job_server.subprocess_args(env)
         else:
-            return dict(pass_fds=inherited_job_server_pass_fds)
+            args: dict[str, typing.Any] = dict(pass_fds=inherited_job_server_pass_fds)
+            if env is not None:
+                args["env"] = env
+            return args
 
 
 _global_client_instance: Client | None = None

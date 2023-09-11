@@ -16,6 +16,7 @@ See :doc:`the task loop overview <index>` for general information about the task
 
    .. automethod:: __init__
 
+.. autoclass:: TaskGroup
 
 Exceptions
 ----------

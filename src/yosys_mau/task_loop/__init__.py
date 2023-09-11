@@ -1,4 +1,4 @@
-from . import context, logging, process
+from . import context, logging, priority, process
 from ._task import (
     ChildAborted,
     ChildCancelled,
@@ -13,6 +13,7 @@ from ._task import (
     TaskEvent,
     TaskEventStream,
     TaskFailed,
+    TaskGroup,
     TaskLoopError,
     TaskLoopInterrupted,
     TaskStateChange,
@@ -20,6 +21,8 @@ from ._task import (
     root_task,
     run_task_loop,
 )
+
+priority = priority
 
 task_context = context.task_context
 
@@ -38,6 +41,7 @@ __all__ = [
     "run_task_loop",
     "current_task",
     "root_task",
+    "TaskGroup",
     "TaskEvent",
     "TaskEventStream",
     "TaskLoopInterrupted",

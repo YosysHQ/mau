@@ -1,5 +1,5 @@
-Running Subprocesses as Task
-============================
+Running Subprocesses as Tasks
+=============================
 
 In the mau task loop, subprocesses run as tasks.
 The output of a subprocess is made available using events.
@@ -16,6 +16,7 @@ Context Variables
 -----------------
 
 .. autoclass:: ProcessContext
+   :members: env
 
    .. autoattribute:: cwd
       :annotation: = os.getcwd()

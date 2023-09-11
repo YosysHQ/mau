@@ -12,3 +12,7 @@ When reading a context variable, the value set by the first task--starting from 
    :members:
 
 .. autoclass:: InlineContextVar
+
+.. autoclass:: TaskContextDict
+
+   .. todo:: Document `TaskContextDict` members
