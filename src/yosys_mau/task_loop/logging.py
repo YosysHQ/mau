@@ -224,6 +224,16 @@ def log_error(*args: Any, cls: type[LogEvent] = LogEvent, raise_error: bool = Tr
 _already_logged: dict[int, tuple[BaseException, LoggedError]] = {}
 
 
+@overload
+def log_exception(exception: BaseException, raise_error: Literal[True] = True) -> NoReturn:
+    ...
+
+
+@overload
+def log_exception(exception: BaseException, raise_error: Literal[False]) -> LoggedError:
+    ...
+
+
 def log_exception(exception: BaseException, raise_error: bool = True) -> LoggedError:
     """Produce error log output for an exception and optionally raise a `LoggedError`.
 
