@@ -243,6 +243,7 @@ class Process(Task):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd=cwd,
+            limit=1 << 60,
             **subprocess_args,
         )
         self.__process_started = True
