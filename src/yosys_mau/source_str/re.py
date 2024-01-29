@@ -248,12 +248,10 @@ class Match:
         return self.wrapped.end(group)
 
     @overload
-    def group(self, group: Literal[0] = 0, /) -> str:
-        ...
+    def group(self, group: Literal[0] = 0, /) -> str: ...
 
     @overload
-    def group(self, group: str | int, /) -> str | None:
-        ...
+    def group(self, group: str | int, /) -> str | None: ...
 
     @overload
     def group(
@@ -262,8 +260,7 @@ class Match:
         group2: str | int,
         /,
         *groups: str | int,
-    ) -> tuple[str | None, ...]:
-        ...
+    ) -> tuple[str | None, ...]: ...
 
     def group(self, *groups: str | int) -> str | tuple[str | None, ...] | None:
         """Source tracking wrapper for :external:meth:`re.Match.group`."""
@@ -274,12 +271,10 @@ class Match:
         return tuple(self._group(group) for group in groups)
 
     @overload
-    def __getitem__(self, group: Literal[0]) -> str:
-        ...
+    def __getitem__(self, group: Literal[0]) -> str: ...
 
     @overload
-    def __getitem__(self, group: int | str) -> str | None:
-        ...
+    def __getitem__(self, group: int | str) -> str | None: ...
 
     def __getitem__(self, group: int | str) -> str | None:
         """Source tracking wrapper for :external:meth:`re.Match.__getitem__`."""
@@ -287,16 +282,13 @@ class Match:
         return group_str
 
     @overload
-    def _group(self, group: Literal[0], default: Any = None) -> str:
-        ...
+    def _group(self, group: Literal[0], default: Any = None) -> str: ...
 
     @overload
-    def _group(self, group: int | str, default: _T) -> str | _T:
-        ...
+    def _group(self, group: int | str, default: _T) -> str | _T: ...
 
     @overload
-    def _group(self, group: int | str) -> str | None:
-        ...
+    def _group(self, group: int | str) -> str | None: ...
 
     def _group(self, group: int | str, default: Any = None) -> Any:
         if group == 0:
@@ -307,24 +299,20 @@ class Match:
         return self.string[span[0] : span[1]]
 
     @overload
-    def groups(self) -> tuple[str | None, ...]:
-        ...
+    def groups(self) -> tuple[str | None, ...]: ...
 
     @overload
-    def groups(self, default: _T) -> tuple[str | _T, ...]:
-        ...
+    def groups(self, default: _T) -> tuple[str | _T, ...]: ...
 
     def groups(self, default: Any = None) -> tuple[Any, ...]:
         """Source tracking wrapper for :external:meth:`re.Match.groups`."""
         return tuple(self._group(group, default) for group in range(1, 1 + self.wrapped.re.groups))
 
     @overload
-    def groupdict(self) -> dict[str, str | None]:
-        ...
+    def groupdict(self) -> dict[str, str | None]: ...
 
     @overload
-    def groupdict(self, default: _T) -> dict[str, str | _T]:
-        ...
+    def groupdict(self, default: _T) -> dict[str, str | _T]: ...
 
     def groupdict(self, default: Any = None) -> dict[str, Any]:
         """Source tracking wrapper for :external:meth:`re.Match.groupdict`."""

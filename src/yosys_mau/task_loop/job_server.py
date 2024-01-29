@@ -86,11 +86,9 @@ def process_job_server_environment() -> None:
 
 
 class Scheduler(typing.Protocol):
-    def __return_lease__(self) -> None:
-        ...
+    def __return_lease__(self) -> None: ...
 
-    def request_lease(self) -> Lease:
-        ...
+    def request_lease(self) -> Lease: ...
 
 
 class Lease:
