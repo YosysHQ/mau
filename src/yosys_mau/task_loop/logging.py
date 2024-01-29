@@ -197,13 +197,13 @@ def log_warning(*args: Any, cls: type[LogEvent] = LogEvent) -> LogEvent:
 @overload
 def log_error(
     *args: Any, cls: type[LogEvent] = LogEvent, raise_error: Literal[True] = True
-) -> NoReturn:
-    ...
+) -> NoReturn: ...
 
 
 @overload
-def log_error(*args: Any, cls: type[LogEvent] = LogEvent, raise_error: Literal[False]) -> LogEvent:
-    ...
+def log_error(
+    *args: Any, cls: type[LogEvent] = LogEvent, raise_error: Literal[False]
+) -> LogEvent: ...
 
 
 def log_error(*args: Any, cls: type[LogEvent] = LogEvent, raise_error: bool = True) -> LogEvent:
@@ -225,13 +225,11 @@ _already_logged: dict[int, tuple[BaseException, LoggedError]] = {}
 
 
 @overload
-def log_exception(exception: BaseException, raise_error: Literal[True] = True) -> NoReturn:
-    ...
+def log_exception(exception: BaseException, raise_error: Literal[True] = True) -> NoReturn: ...
 
 
 @overload
-def log_exception(exception: BaseException, raise_error: Literal[False]) -> LoggedError:
-    ...
+def log_exception(exception: BaseException, raise_error: Literal[False]) -> LoggedError: ...
 
 
 def log_exception(exception: BaseException, raise_error: bool = True) -> LoggedError:

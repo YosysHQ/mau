@@ -244,8 +244,7 @@ class SectionParser(Generic[T], metaclass=ABCMeta):
         arguments: None | bool = None,
         all_sections: bool = False,
         mark_as_processed: bool = True,
-    ) -> list[ConfigSection]:
-        ...
+    ) -> list[ConfigSection]: ...
 
     @typing.overload
     def matching_sections(
@@ -255,8 +254,7 @@ class SectionParser(Generic[T], metaclass=ABCMeta):
         unique: bool = False,
         arguments: ValueParser[A],
         mark_as_processed: bool = True,
-    ) -> dict[A, list[ConfigSection]]:
-        ...
+    ) -> dict[A, list[ConfigSection]]: ...
 
     def matching_sections(
         self,
@@ -377,12 +375,10 @@ class SectionParser(Generic[T], metaclass=ABCMeta):
             owner.__register_section_parser__(self)
 
     @typing.overload
-    def __get__(self, instance: ConfigParser, owner: type[ConfigParser]) -> T:
-        ...
+    def __get__(self, instance: ConfigParser, owner: type[ConfigParser]) -> T: ...
 
     @typing.overload
-    def __get__(self, instance: object, owner: object = None) -> Self:
-        ...
+    def __get__(self, instance: object, owner: object = None) -> Self: ...
 
     def __get__(self, instance: object, owner: object = None) -> T | Self:
         if isinstance(instance, ConfigParser):
@@ -390,12 +386,10 @@ class SectionParser(Generic[T], metaclass=ABCMeta):
         return self
 
     @typing.overload
-    def __set__(self, instance: object, value: Self) -> None:
-        ...
+    def __set__(self, instance: object, value: Self) -> None: ...
 
     @typing.overload
-    def __set__(self, instance: ConfigParser, value: T) -> None:
-        ...
+    def __set__(self, instance: ConfigParser, value: T) -> None: ...
 
     def __set__(self, instance: Any, value: Self | T) -> None:
         if isinstance(instance, ConfigParser):
@@ -462,12 +456,10 @@ class SectionContentsParser(SectionParser[T]):
             self._result = value
 
     @typing.overload
-    def with_arguments(self, value_parser: ValueParser[A]) -> ArgSection[A, T]:
-        ...
+    def with_arguments(self, value_parser: ValueParser[A]) -> ArgSection[A, T]: ...
 
     @typing.overload
-    def with_arguments(self, value_parser: None = None) -> ArgSection[str, T]:
-        ...
+    def with_arguments(self, value_parser: None = None) -> ArgSection[str, T]: ...
 
     def with_arguments(self, value_parser: ValueParser[Any] | None = None) -> ArgSection[Any, T]:
         """Wraps this section parser in an `ArgSection` parser."""
@@ -545,18 +537,15 @@ class ArgSection(SectionParser[typing.Mapping[A, T]]):
             cls,
             content_parser: SectionContentsParser[T] | Callable[[A], SectionContentsParser[T]],
             argument_parser: ValueParser[A],
-        ) -> ArgSection[A, T]:
-            ...
+        ) -> ArgSection[A, T]: ...
 
         @typing.overload
         def __new__(
             cls,
             content_parser: SectionContentsParser[T] | Callable[[str], SectionContentsParser[T]],
-        ) -> ArgSection[str, T]:
-            ...
+        ) -> ArgSection[str, T]: ...
 
-        def __new__(cls, *args: Any, **kwargs: Any) -> ArgSection[Any, T]:
-            ...
+        def __new__(cls, *args: Any, **kwargs: Any) -> ArgSection[Any, T]: ...
 
     def parse(self) -> None:
         sections = self.matching_sections(mark_as_processed=False, arguments=self.arguments_parser)

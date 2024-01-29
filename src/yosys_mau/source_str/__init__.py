@@ -442,16 +442,13 @@ class SourceMap(SourceSpans):
         return self.len
 
     @typing.overload
-    def _index(self, index: int, default: int | None) -> int:
-        ...
+    def _index(self, index: int, default: int | None) -> int: ...
 
     @typing.overload
-    def _index(self, index: int | None, default: int) -> int:
-        ...
+    def _index(self, index: int | None, default: int) -> int: ...
 
     @typing.overload
-    def _index(self, index: int | None, default: None) -> int | None:
-        ...
+    def _index(self, index: int | None, default: None) -> int | None: ...
 
     def _index(self, index: int | None, default: int | None) -> int | None:
         if index is None:
@@ -512,12 +509,10 @@ class SourceMap(SourceSpans):
         return lo
 
     @typing.overload
-    def __add__(self, other: SourceMap) -> SourceMap:
-        ...
+    def __add__(self, other: SourceMap) -> SourceMap: ...
 
     @typing.overload
-    def __add__(self, other: SourceSpans) -> SourceSpans:
-        ...
+    def __add__(self, other: SourceSpans) -> SourceSpans: ...
 
     def __add__(self, other: SourceSpans) -> SourceSpans:
         if not isinstance(other, SourceMap):

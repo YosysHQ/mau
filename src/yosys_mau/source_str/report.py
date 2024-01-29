@@ -4,6 +4,7 @@
   The API for error reporting hasn't been fully designed yet and is likely to change.
 
 """
+
 from __future__ import annotations
 
 from collections import defaultdict

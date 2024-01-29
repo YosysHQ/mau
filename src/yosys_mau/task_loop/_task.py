@@ -342,13 +342,13 @@ class Task:
 
     def __init__(
         self,
-        on_run: Callable[[Self], Awaitable[None] | None]
-        | Callable[[], Awaitable[None] | None]
-        | None = None,
+        on_run: (
+            Callable[[Self], Awaitable[None] | None] | Callable[[], Awaitable[None] | None] | None
+        ) = None,
         *,
-        on_prepare: Callable[[Self], Awaitable[None] | None]
-        | Callable[[], Awaitable[None] | None]
-        | None = None,
+        on_prepare: (
+            Callable[[Self], Awaitable[None] | None] | Callable[[], Awaitable[None] | None] | None
+        ) = None,
         name: str | None = None,
     ):
         """The constructor creates a new task as child task of the current task and schedule it to

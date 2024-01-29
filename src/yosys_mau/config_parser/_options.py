@@ -278,12 +278,10 @@ class OptionParser(Generic[T], metaclass=ABCMeta):
             owner.__register_option_parser__(self)
 
     @typing.overload
-    def __get__(self, instance: ConfigOptions, owner: type[ConfigOptions]) -> T:
-        ...
+    def __get__(self, instance: ConfigOptions, owner: type[ConfigOptions]) -> T: ...
 
     @typing.overload
-    def __get__(self, instance: object, owner: object = None) -> Self:
-        ...
+    def __get__(self, instance: object, owner: object = None) -> Self: ...
 
     def __get__(self, instance: object, owner: object = None) -> T | Self:
         if isinstance(instance, ConfigOptions):
@@ -291,12 +289,10 @@ class OptionParser(Generic[T], metaclass=ABCMeta):
         return self
 
     @typing.overload
-    def __set__(self, instance: object, value: Self) -> None:
-        ...
+    def __set__(self, instance: object, value: Self) -> None: ...
 
     @typing.overload
-    def __set__(self, instance: ConfigOptions, value: T) -> None:
-        ...
+    def __set__(self, instance: ConfigOptions, value: T) -> None: ...
 
     def __set__(self, instance: Any, value: Self | T) -> None:
         if isinstance(instance, ConfigOptions):
