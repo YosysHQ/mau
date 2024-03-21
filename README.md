@@ -27,7 +27,10 @@ Currently this library targets Python 3.8 and newer.
 
 ## Documentation
 
-To build the Sphinx documentation of this library, run:
+Documentation is available online at
+https://yosyshq.readthedocs.io/projects/mau/en/latest/.
+
+To build the Sphinx documentation of this library locally, run:
 
     make docs
 
