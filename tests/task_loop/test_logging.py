@@ -140,6 +140,77 @@ def test_log_levels():
     ]
 
 
+def test_log_destinations():
+    log_output1 = io.StringIO()
+    log_output2 = io.StringIO()
+
+    def main():
+        tl.LogContext.time_format = fixed_time
+        tl.logging.start_logging(file=log_output1, destination_label="1")
+        tl.logging.start_logging(file=log_output2, destination_label="2")
+
+        tl.LogContext.dest_levels["2"] = "debug"
+        tl.log_debug("line 1")
+        tl.log("line 2")
+
+        del tl.LogContext.dest_levels["2"]
+        tl.LogContext.level = "debug"
+        tl.LogContext.dest_levels["1"] = "info"
+        tl.log_debug("line 3")
+        tl.log("line 4")
+
+    tl.run_task_loop(main)
+
+    assert log_output1.getvalue().splitlines() == [
+        "12:34:56 line 2",
+        "12:34:56 line 4",
+    ]
+
+    assert log_output2.getvalue().splitlines() == [
+        "12:34:56 DEBUG: line 1",
+        "12:34:56 line 2",
+        "12:34:56 DEBUG: line 3",
+        "12:34:56 line 4",
+    ]
+
+
+def test_log_no_label():
+    log_output1 = io.StringIO()
+    log_output2 = io.StringIO()
+
+    def main():
+        tl.LogContext.time_format = fixed_time
+        tl.logging.start_logging(file=log_output1)
+        tl.logging.start_logging(file=log_output2, destination_label="2")
+
+        # tl.LogContext.level = "info" # implied
+        tl.LogContext.dest_levels["2"] = "debug"
+        tl.log_debug("line 1")
+        tl.log("line 2")
+
+        tl.LogContext.level = "debug"
+        tl.LogContext.dest_levels["1"] = "info"
+        tl.LogContext.dest_levels["2"] = "warning"
+        tl.log_debug("line 3")
+
+        tl.LogContext.dest_levels[None] = "warning"
+        tl.LogContext.dest_levels[""] = "warning"
+        tl.log("line 4")
+
+    tl.run_task_loop(main)
+
+    assert log_output1.getvalue().splitlines() == [
+        "12:34:56 line 2",
+        "12:34:56 DEBUG: line 3",
+        "12:34:56 line 4",
+    ]
+
+    assert log_output2.getvalue().splitlines() == [
+        "12:34:56 DEBUG: line 1",
+        "12:34:56 line 2",
+    ]
+
+
 def test_exception_logging():
     log_output = io.StringIO()
 
