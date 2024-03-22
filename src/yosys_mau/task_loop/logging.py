@@ -17,7 +17,10 @@ from ._task import (
     current_task_or_none,
     root_task,
 )
-from .context import task_context
+from .context import (
+    TaskContextDict,
+    task_context,
+)
 
 Level = Literal["debug", "info", "warning", "error"]
 
@@ -118,16 +121,16 @@ class LogContext:
     When set, the downgrading happens before the `LogEvent` is emitted.
     """
 
-    level: Level = "info"
-    """The minimum log level to display/log.
+    dest_levels: TaskContextDict[str, Level] = TaskContextDict()
+    """The minimum log level to display/log for named destinations.
 
     This does not stop `LogEvent` of smaller levels to be emitted. It is only used to filter which
     messages to actually print/log. Hence, it does not affect any user installed `LogEvent`
     handlers.
-
-    When logging to multiple destinations, currently there is no way to specify this per
-    destination.
     """
+
+    level: Level = "info"
+    """The minimum log level used if a destination has no specific level."""
 
     log_format: Callable[[LogEvent], str] = default_formatter
     """The formatter used to format log messages.
@@ -297,7 +300,10 @@ _no_color = bool(os.getenv("NO_COLOR", ""))
 
 
 def start_logging(
-    file: IO[Any] | None = None, err: bool = False, color: bool | None = None
+    file: IO[Any] | None = None,
+    err: bool = False,
+    color: bool | None = None,
+    destination_label: str | None = None,
 ) -> None:
     """Start logging all log events reaching the current task.
 
@@ -310,6 +316,8 @@ def start_logging(
     :param color: Whether to use colors. Defaults to ``True`` for terminals and ``False`` otherwise.
         When the ``NO_COLOR`` environment variable is set, this will be ignored and no colors will
         be used.
+    :param destination_label: Used to look up destination specific log level filtering.  Used with
+        `LogContext.dest_levels`.
     """
     if _no_color:
         color = False
@@ -318,7 +326,12 @@ def start_logging(
         if file and file.closed:
             remove_log_handler()
             return
-        source_level = _level_order[event.source[LogContext].level]
+        logContext = event.source[LogContext]
+        if destination_label:
+            destination_level = logContext.dest_levels.get(destination_label, logContext.level)
+        else:
+            destination_level = logContext.level
+        source_level = _level_order[destination_level]
         event_level = _level_order[event.level]
         if event_level < source_level:
             return
