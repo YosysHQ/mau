@@ -140,75 +140,51 @@ def test_log_levels():
     ]
 
 
-def test_log_destinations():
-    log_output1 = io.StringIO()
-    log_output2 = io.StringIO()
+@pytest.mark.parametrize(
+    "label,expected",
+    [
+        ("default", [2, 3, 4, 6]),
+        ("debug", [1, 2, 3, 4, 5, 6]),
+        ("info", [2, 4, 5, 6]),
+        ("warning", [5, 6]),
+        ("error", [6]),
+        ("varied", [1, 2, 4, 6]),
+    ],
+)
+def test_log_destinations(label: str, expected: list[str]):
+    log_output = io.StringIO()
 
     def main():
         tl.LogContext.time_format = fixed_time
-        tl.logging.start_logging(file=log_output1, destination_label="1")
-        tl.logging.start_logging(file=log_output2, destination_label="2")
-
-        tl.LogContext.dest_levels["2"] = "debug"
-        tl.log_debug("line 1")
-        tl.log("line 2")
-
-        del tl.LogContext.dest_levels["2"]
-        tl.LogContext.level = "debug"
-        tl.LogContext.dest_levels["1"] = "info"
-        tl.log_debug("line 3")
-        tl.log("line 4")
-
-    tl.run_task_loop(main)
-
-    assert log_output1.getvalue().splitlines() == [
-        "12:34:56 line 2",
-        "12:34:56 line 4",
-    ]
-
-    assert log_output2.getvalue().splitlines() == [
-        "12:34:56 DEBUG: line 1",
-        "12:34:56 line 2",
-        "12:34:56 DEBUG: line 3",
-        "12:34:56 line 4",
-    ]
-
-
-def test_log_no_label():
-    log_output1 = io.StringIO()
-    log_output2 = io.StringIO()
-
-    def main():
-        tl.LogContext.time_format = fixed_time
-        tl.logging.start_logging(file=log_output1)
-        tl.logging.start_logging(file=log_output2, destination_label="2")
+        tl.logging.start_logging(file=log_output, destination_label=label)
 
         # tl.LogContext.level = "info" # implied
-        tl.LogContext.dest_levels["2"] = "debug"
+        tl.LogContext.dest_levels["info"] = "info"
+        tl.LogContext.dest_levels["debug"] = "debug"
+        tl.LogContext.dest_levels["warning"] = "warning"
+        tl.LogContext.dest_levels["error"] = "error"
+
+        tl.LogContext.dest_levels["varied"] = "debug"
         tl.log_debug("line 1")
         tl.log("line 2")
 
         tl.LogContext.level = "debug"
-        tl.LogContext.dest_levels["1"] = "info"
-        tl.LogContext.dest_levels["2"] = "warning"
+        tl.LogContext.dest_levels["varied"] = "warning"
         tl.log_debug("line 3")
 
+        del tl.LogContext.dest_levels["varied"]
         tl.LogContext.dest_levels[None] = "warning"
         tl.LogContext.dest_levels[""] = "warning"
         tl.log("line 4")
 
+        tl.LogContext.level = "error"
+        tl.log_warning("line 5")
+        tl.log_error("line 6", raise_error=False)
+
     tl.run_task_loop(main)
 
-    assert log_output1.getvalue().splitlines() == [
-        "12:34:56 line 2",
-        "12:34:56 DEBUG: line 3",
-        "12:34:56 line 4",
-    ]
-
-    assert log_output2.getvalue().splitlines() == [
-        "12:34:56 DEBUG: line 1",
-        "12:34:56 line 2",
-    ]
+    trimmed_output = [int(x[-1]) for x in log_output.getvalue().splitlines()]
+    assert trimmed_output == expected
 
 
 def test_exception_logging():
