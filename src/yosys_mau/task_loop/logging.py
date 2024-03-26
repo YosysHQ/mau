@@ -17,7 +17,10 @@ from ._task import (
     current_task_or_none,
     root_task,
 )
-from .context import task_context
+from .context import (
+    TaskContextDict,
+    task_context,
+)
 
 Level = Literal["debug", "info", "warning", "error"]
 
@@ -119,14 +122,12 @@ class LogContext:
 
     level: Level = "info"
     """The minimum log level to display/log.
+    
+    Can be overridden for named destinations with `dest_levels`.
 
     This does not stop `LogEvent` of smaller levels to be emitted. It is only used to filter which
     messages to actually print/log. Hence, it does not affect any user installed `LogEvent`
-    handlers.
-
-    When logging to multiple destinations, currently there is no way to specify this per
-    destination.
-    """
+    handlers."""
 
     log_format: Callable[[LogEvent], str] = default_formatter
     """The formatter used to format log messages.
@@ -142,6 +143,14 @@ class LogContext:
     the log output.
 
     Like `log_format` this is looked up by the log writing task, not the emitting task.
+    """
+
+    dest_levels: TaskContextDict[str, Level] = TaskContextDict()
+    """The minimum log level to display/log for named destinations.
+
+    Like `log_format` this is looked up by the log writing task, not the emitting task.  If the
+    current destination has no key:value pair in this dictionary, the `level` will be looked up by
+    the task which emit the log.
     """
 
 
@@ -296,7 +305,10 @@ _no_color = bool(os.getenv("NO_COLOR", ""))
 
 
 def start_logging(
-    file: IO[Any] | None = None, err: bool = False, color: bool | None = None
+    file: IO[Any] | None = None,
+    err: bool = False,
+    color: bool | None = None,
+    destination_label: str | None = None,
 ) -> None:
     """Start logging all log events reaching the current task.
 
@@ -309,6 +321,8 @@ def start_logging(
     :param color: Whether to use colors. Defaults to ``True`` for terminals and ``False`` otherwise.
         When the ``NO_COLOR`` environment variable is set, this will be ignored and no colors will
         be used.
+    :param destination_label: Used to look up destination specific log level filtering.
+        Used with `LogContext.dest_levels`.
     """
     if _no_color:
         color = False
@@ -317,7 +331,12 @@ def start_logging(
         if file and file.closed:
             remove_log_handler()
             return
-        source_level = _level_order[event.source[LogContext].level]
+        emitter_default = event.source[LogContext].level
+        if destination_label:
+            destination_level = LogContext.dest_levels.get(destination_label, emitter_default)
+        else:
+            destination_level = emitter_default
+        source_level = _level_order[destination_level]
         event_level = _level_order[event.level]
         if event_level < source_level:
             return

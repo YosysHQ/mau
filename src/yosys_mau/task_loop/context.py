@@ -205,6 +205,7 @@ class TaskContextDict(typing.MutableMapping[K, V]):
             else:
                 if isinstance(value, _MISSING_TYPE):
                     raise KeyError(repr(key))
+                return value
         return self.__default[key]
 
     def __setitem__(self, key: K, value: V) -> None:
