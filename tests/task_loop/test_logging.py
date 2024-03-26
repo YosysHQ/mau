@@ -173,7 +173,7 @@ def test_log_destinations(label: str, expected: list[str]):
         tl.log_debug("line 3")
 
         del tl.LogContext.dest_levels["varied"]
-        tl.LogContext.dest_levels[None] = "warning"
+        tl.LogContext.dest_levels[None] = "warning"  # type:ignore
         tl.LogContext.dest_levels[""] = "warning"
         tl.log("line 4")
 
@@ -214,11 +214,7 @@ def test_nested_destinations(task: str, label: str):
                 tl.logging.start_logging(file=log_output, destination_label=label)
                 tl.LogContext.dest_levels["mixed1"] = "info"
 
-            tl.LogContext.dest_levels["mixed2"] = {
-                "root": "debug",
-                "task1": "info",
-                "task2": "",
-            }[task]
+            tl.LogContext.dest_levels["mixed2"] = "debug" if task == "root" else "info"
 
             task2 = tl.Task(on_run=run_task2)
             tl.log("line 2")
@@ -239,11 +235,7 @@ def test_nested_destinations(task: str, label: str):
                 tl.logging.start_logging(file=log_output, destination_label=label)
                 tl.LogContext.dest_levels["mixed1"] = "debug"
 
-            tl.LogContext.dest_levels["mixed2"] = {
-                "root": "error",
-                "task1": "debug",
-                "task2": "error",
-            }[task]
+            tl.LogContext.dest_levels["mixed2"] = "debug" if task == "task1" else "error"
 
             tl.log_debug("line 3")
 
