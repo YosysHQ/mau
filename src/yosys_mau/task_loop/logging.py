@@ -121,16 +121,14 @@ class LogContext:
     When set, the downgrading happens before the `LogEvent` is emitted.
     """
 
-    dest_levels: TaskContextDict[str, Level] = TaskContextDict()
-    """The minimum log level to display/log for named destinations.
+    level: Level = "info"
+    """The minimum log level to display/log.
+    
+    Can be overridden for named destinations with dest_levels`.
 
     This does not stop `LogEvent` of smaller levels to be emitted. It is only used to filter which
     messages to actually print/log. Hence, it does not affect any user installed `LogEvent`
-    handlers.
-    """
-
-    level: Level = "info"
-    """The minimum log level used if a destination has no specific level."""
+    handlers."""
 
     log_format: Callable[[LogEvent], str] = default_formatter
     """The formatter used to format log messages.
@@ -146,6 +144,14 @@ class LogContext:
     the log output.
 
     Like `log_format` this is looked up by the log writing task, not the emitting task.
+    """
+
+    dest_levels: TaskContextDict[str, Level] = TaskContextDict()
+    """The minimum log level to display/log for named destinations.
+
+    Like `log_format` this is looked up by the log writing task, not the emitting task.  If the
+    current destination has no key:value pair in this dictionary, the `level` will be looked up by
+    the task which emit the log.
     """
 
 
@@ -326,11 +332,11 @@ def start_logging(
         if file and file.closed:
             remove_log_handler()
             return
-        logContext = event.source[LogContext]
+        emitter_default = event.source[LogContext].level
         if destination_label:
-            destination_level = logContext.dest_levels.get(destination_label, logContext.level)
+            destination_level = LogContext.dest_levels.get(destination_label, emitter_default)
         else:
-            destination_level = logContext.level
+            destination_level = emitter_default
         source_level = _level_order[destination_level]
         event_level = _level_order[event.level]
         if event_level < source_level:

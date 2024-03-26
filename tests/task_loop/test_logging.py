@@ -273,7 +273,6 @@ def test_nested_destinations(task: str, label: str):
         filtered_list = [x for i, x in enumerate(reference_list) if i in label_map[label]]
         expected = [x for x in filtered_list if task in x.split("?")]
     else:
-        # potentially unintuitive, but destination levels come from the emitter not the logger
         if label == "mixed1":
             task_map: dict[str, list[int]] = {
                 "root": [5],
@@ -282,8 +281,8 @@ def test_nested_destinations(task: str, label: str):
             }
         elif label == "mixed2":
             task_map: dict[str, list[int]] = {
-                "root": [0, 1, 2, 4, 6, 7],
-                "task1": [2, 3, 5, 6],
+                "root": [0, 1, 2, 5, 6, 7],
+                "task1": [2, 5, 6],
                 "task2": [],
             }
         else:
