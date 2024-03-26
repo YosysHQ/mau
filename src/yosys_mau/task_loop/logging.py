@@ -124,7 +124,7 @@ class LogContext:
     level: Level = "info"
     """The minimum log level to display/log.
     
-    Can be overridden for named destinations with dest_levels`.
+    Can be overridden for named destinations with `dest_levels`.
 
     This does not stop `LogEvent` of smaller levels to be emitted. It is only used to filter which
     messages to actually print/log. Hence, it does not affect any user installed `LogEvent`
@@ -322,8 +322,8 @@ def start_logging(
     :param color: Whether to use colors. Defaults to ``True`` for terminals and ``False`` otherwise.
         When the ``NO_COLOR`` environment variable is set, this will be ignored and no colors will
         be used.
-    :param destination_label: Used to look up destination specific log level filtering.  Used with
-        `LogContext.dest_levels`.
+    :param destination_label: Used to look up destination specific log level filtering.
+        Used with `LogContext.dest_levels`.
     """
     if _no_color:
         color = False
