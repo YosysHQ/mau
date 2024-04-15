@@ -33,7 +33,6 @@ MANIFEST
 /.hypothesis
 /.coverage
 /.coverage.*
-/coverage.xml
 
 # user makefile config
 /Makefile.conf
