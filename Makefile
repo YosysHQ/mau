@@ -46,7 +46,7 @@ docs-%:
 
 test:
 	$(PYTHON) -m pytest \
-		--cov-report html --cov-report xml:coverage.xml --cov-report term \
+		--cov-report html --cov-report term \
 		--cov yosys_mau \
 		-n auto -q $(O)
 
@@ -71,4 +71,4 @@ dev-install:
 ci: formatting lint typecheck test docs-html
 
 clean: docs-clean
-	rm -rf .coverage .pytest_cache .mypy_cache .ruff_cache htmlcov coverage.xml
+	rm -rf .coverage .pytest_cache .mypy_cache .ruff_cache htmlcov

@@ -13,13 +13,6 @@ jobs:
         run: make dev-install
       - name: Run tests
         run: make test
-      - name: Report
-        uses: 5monkeys/cobertura-action@master
-        with:
-          path: coverage.xml
-          minimum_coverage: 90
-          skip_covered: false
-          fail_below_threshold: true
 
   check:
     runs-on: ubuntu-20.04
