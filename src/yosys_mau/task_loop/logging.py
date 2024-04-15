@@ -72,7 +72,8 @@ def default_formatter(event: LogEvent):
     parts: list[str] = []
     if context.app_name:
         parts.append(f"{click.style(context.app_name, fg='blue')} ")
-    parts.append(f"{click.style(time_str, fg='green')} ")
+    if time_str:
+        parts.append(f"{click.style(time_str, fg='green')} ")
     if context.work_dir:
         parts.append(f"[{click.style(context.work_dir, fg='blue')}] ")
     if context.scope:
