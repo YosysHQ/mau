@@ -14,12 +14,14 @@ jobs:
       - name: Run tests
         run: make test
       - name: Report
-        uses: 5monkeys/cobertura-action@master
+        uses: insightsengineering/coverage-action@v2
         with:
           path: coverage.xml
-          minimum_coverage: 90
-          skip_covered: false
-          fail_below_threshold: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          threshold: 90
+          fail: true
+          publish: true
+          coverage-summary-title: "Code Coverage Summary"
 
   check:
     runs-on: ubuntu-20.04
