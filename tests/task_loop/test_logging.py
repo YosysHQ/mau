@@ -173,7 +173,6 @@ def test_log_destinations(label: str, expected: list[str]):
         tl.log_debug("line 3")
 
         del tl.LogContext.destination_levels["varied"]
-        tl.LogContext.destination_levels[None] = "warning"  # type:ignore
         tl.LogContext.destination_levels[""] = "warning"
         tl.log("line 4")
 
