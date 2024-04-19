@@ -282,6 +282,7 @@ def test_child_TaskContextDict():
 
         def on_task2():
             SomeContext.some_var["b"] = "d"
+            del SomeContext.some_var["a"]
             order.append(SomeContext.some_var.as_dict())
 
         tl.Task(on_run=on_task1)
@@ -292,7 +293,7 @@ def test_child_TaskContextDict():
 
     assert order == [
         {"a": "b", "b": "c"},
-        {"a": "b", "b": "d"},
+        {"b": "d"},
         {"a": "b", "b": "c"},
     ]
 
