@@ -140,6 +140,158 @@ def test_log_levels():
     ]
 
 
+@pytest.mark.parametrize(
+    "label,expected",
+    [
+        ("default", [2, 3, 4, 6]),
+        ("debug", [1, 2, 3, 4, 5, 6]),
+        ("info", [2, 4, 5, 6]),
+        ("warning", [5, 6]),
+        ("error", [6]),
+        ("varied", [1, 2, 4, 6]),
+    ],
+)
+def test_log_destinations(label: str, expected: list[str]):
+    log_output = io.StringIO()
+
+    def main():
+        tl.LogContext.time_format = fixed_time
+        tl.logging.start_logging(file=log_output, destination_label=label)
+
+        # tl.LogContext.level = "info" # implied
+        tl.LogContext.destination_levels["info"] = "info"
+        tl.LogContext.destination_levels["debug"] = "debug"
+        tl.LogContext.destination_levels["warning"] = "warning"
+        tl.LogContext.destination_levels["error"] = "error"
+
+        tl.LogContext.destination_levels["varied"] = "debug"
+        tl.log_debug("line 1")
+        tl.log("line 2")
+
+        tl.LogContext.level = "debug"
+        tl.LogContext.destination_levels["varied"] = "warning"
+        tl.log_debug("line 3")
+
+        del tl.LogContext.destination_levels["varied"]
+        tl.LogContext.destination_levels[""] = "warning"
+        tl.log("line 4")
+
+        tl.LogContext.level = "error"
+        tl.log_warning("line 5")
+        tl.log_error("line 6", raise_error=False)
+
+    tl.run_task_loop(main)
+
+    trimmed_output = [int(x[-1]) for x in log_output.getvalue().splitlines()]
+    assert trimmed_output == expected
+
+
+@pytest.mark.parametrize("task", ["root", "task1", "task2"])
+@pytest.mark.parametrize("label", ["debug", "info", "warning", "mixed1", "mixed2"])
+def test_nested_destinations(task: str, label: str):
+    log_output = io.StringIO()
+
+    async def main():
+        tl.LogContext.time_format = fixed_time
+        tl.LogContext.scope = "?root?"
+        if task == "root":
+            tl.logging.start_logging(file=log_output, destination_label=label)
+            tl.LogContext.destination_levels["mixed1"] = "warning"
+
+        tl.LogContext.destination_levels["debug"] = "debug"
+        tl.LogContext.destination_levels["info"] = "info"
+        tl.LogContext.destination_levels["warning"] = "warning"
+        tl.LogContext.destination_levels["error"] = "error"
+        tl.LogContext.destination_levels["source"] = "warning"
+
+        tl.log("line 0")
+        sync_event = asyncio.Event()
+
+        async def run_task1():
+            tl.LogContext.scope = "?root?task1?"
+            if task == "task1":
+                tl.logging.start_logging(file=log_output, destination_label=label)
+                tl.LogContext.destination_levels["mixed1"] = "info"
+
+            tl.LogContext.destination_levels["mixed2"] = "debug" if task == "root" else "info"
+
+            task2 = tl.Task(on_run=run_task2)
+            tl.log("line 2")
+
+            await task2.started
+
+            tl.log_debug("line 4")
+
+            sync_event.set()
+
+            await task2.finished
+
+            tl.log("line 6")
+
+        async def run_task2():
+            tl.LogContext.scope = "?root?task1?task2?"
+            if task == "task2":
+                tl.logging.start_logging(file=log_output, destination_label=label)
+                tl.LogContext.destination_levels["mixed1"] = "debug"
+
+            tl.LogContext.destination_levels["mixed2"] = "debug" if task == "task1" else "error"
+
+            tl.log_debug("line 3")
+
+            await sync_event.wait()
+            tl.log_warning("line 5")
+
+        task1 = tl.Task(on_run=run_task1)
+
+        tl.log("line 1")
+
+        await task1.finished
+
+        tl.log("line 7")
+
+    tl.run_task_loop(main)
+
+    reference_list = [
+        "12:34:56 ?root?: line 0",
+        "12:34:56 ?root?: line 1",
+        "12:34:56 ?root?task1?: line 2",
+        "12:34:56 ?root?task1?task2?: DEBUG: line 3",
+        "12:34:56 ?root?task1?: DEBUG: line 4",
+        "12:34:56 ?root?task1?task2?: WARNING: line 5",
+        "12:34:56 ?root?task1?: line 6",
+        "12:34:56 ?root?: line 7",
+    ]
+
+    label_map: dict[str, list[int]] = {
+        "debug": [0, 1, 2, 3, 4, 5, 6, 7],
+        "info": [0, 1, 2, 5, 6, 7],
+        "warning": [5],
+    }
+
+    if label in label_map:
+        filtered_list = [x for i, x in enumerate(reference_list) if i in label_map[label]]
+        expected = [x for x in filtered_list if task in x.split("?")]
+    else:
+        if label == "mixed1":
+            task_map: dict[str, list[int]] = {
+                "root": [5],
+                "task1": [2, 5, 6],
+                "task2": [3, 5],
+            }
+        elif label == "mixed2":
+            task_map: dict[str, list[int]] = {
+                "root": [0, 1, 2, 5, 6, 7],
+                "task1": [2, 5, 6],
+                "task2": [],
+            }
+        else:
+            assert False, f"unknown label {label}"
+        expected = [x for i, x in enumerate(reference_list) if i in task_map[task]]
+
+    print(log_output.getvalue())
+    assert log_output.getvalue().splitlines() == expected
+
+
 def test_exception_logging():
     log_output = io.StringIO()
 
