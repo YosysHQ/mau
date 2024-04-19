@@ -159,22 +159,22 @@ def test_log_destinations(label: str, expected: list[str]):
         tl.logging.start_logging(file=log_output, destination_label=label)
 
         # tl.LogContext.level = "info" # implied
-        tl.LogContext.dest_levels["info"] = "info"
-        tl.LogContext.dest_levels["debug"] = "debug"
-        tl.LogContext.dest_levels["warning"] = "warning"
-        tl.LogContext.dest_levels["error"] = "error"
+        tl.LogContext.destination_levels["info"] = "info"
+        tl.LogContext.destination_levels["debug"] = "debug"
+        tl.LogContext.destination_levels["warning"] = "warning"
+        tl.LogContext.destination_levels["error"] = "error"
 
-        tl.LogContext.dest_levels["varied"] = "debug"
+        tl.LogContext.destination_levels["varied"] = "debug"
         tl.log_debug("line 1")
         tl.log("line 2")
 
         tl.LogContext.level = "debug"
-        tl.LogContext.dest_levels["varied"] = "warning"
+        tl.LogContext.destination_levels["varied"] = "warning"
         tl.log_debug("line 3")
 
-        del tl.LogContext.dest_levels["varied"]
-        tl.LogContext.dest_levels[None] = "warning"  # type:ignore
-        tl.LogContext.dest_levels[""] = "warning"
+        del tl.LogContext.destination_levels["varied"]
+        tl.LogContext.destination_levels[None] = "warning"  # type:ignore
+        tl.LogContext.destination_levels[""] = "warning"
         tl.log("line 4")
 
         tl.LogContext.level = "error"
@@ -197,13 +197,13 @@ def test_nested_destinations(task: str, label: str):
         tl.LogContext.scope = "?root?"
         if task == "root":
             tl.logging.start_logging(file=log_output, destination_label=label)
-            tl.LogContext.dest_levels["mixed1"] = "warning"
+            tl.LogContext.destination_levels["mixed1"] = "warning"
 
-        tl.LogContext.dest_levels["debug"] = "debug"
-        tl.LogContext.dest_levels["info"] = "info"
-        tl.LogContext.dest_levels["warning"] = "warning"
-        tl.LogContext.dest_levels["error"] = "error"
-        tl.LogContext.dest_levels["source"] = "warning"
+        tl.LogContext.destination_levels["debug"] = "debug"
+        tl.LogContext.destination_levels["info"] = "info"
+        tl.LogContext.destination_levels["warning"] = "warning"
+        tl.LogContext.destination_levels["error"] = "error"
+        tl.LogContext.destination_levels["source"] = "warning"
 
         tl.log("line 0")
         sync_event = asyncio.Event()
@@ -212,9 +212,9 @@ def test_nested_destinations(task: str, label: str):
             tl.LogContext.scope = "?root?task1?"
             if task == "task1":
                 tl.logging.start_logging(file=log_output, destination_label=label)
-                tl.LogContext.dest_levels["mixed1"] = "info"
+                tl.LogContext.destination_levels["mixed1"] = "info"
 
-            tl.LogContext.dest_levels["mixed2"] = "debug" if task == "root" else "info"
+            tl.LogContext.destination_levels["mixed2"] = "debug" if task == "root" else "info"
 
             task2 = tl.Task(on_run=run_task2)
             tl.log("line 2")
@@ -233,9 +233,9 @@ def test_nested_destinations(task: str, label: str):
             tl.LogContext.scope = "?root?task1?task2?"
             if task == "task2":
                 tl.logging.start_logging(file=log_output, destination_label=label)
-                tl.LogContext.dest_levels["mixed1"] = "debug"
+                tl.LogContext.destination_levels["mixed1"] = "debug"
 
-            tl.LogContext.dest_levels["mixed2"] = "debug" if task == "task1" else "error"
+            tl.LogContext.destination_levels["mixed2"] = "debug" if task == "task1" else "error"
 
             tl.log_debug("line 3")
 

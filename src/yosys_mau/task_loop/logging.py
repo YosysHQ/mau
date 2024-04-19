@@ -124,7 +124,7 @@ class LogContext:
     level: Level = "info"
     """The minimum log level to display/log.
     
-    Can be overridden for named destinations with `dest_levels`.
+    Can be overridden for named destinations with `destination_levels`.
 
     This does not stop `LogEvent` of smaller levels to be emitted. It is only used to filter which
     messages to actually print/log. Hence, it does not affect any user installed `LogEvent`
@@ -146,7 +146,7 @@ class LogContext:
     Like `log_format` this is looked up by the log writing task, not the emitting task.
     """
 
-    dest_levels: TaskContextDict[str, Level] = TaskContextDict()
+    destination_levels: TaskContextDict[str, Level] = TaskContextDict()
     """The minimum log level to display/log for named destinations.
 
     Like `log_format` this is looked up by the log writing task, not the emitting task.  If the
@@ -323,7 +323,7 @@ def start_logging(
         When the ``NO_COLOR`` environment variable is set, this will be ignored and no colors will
         be used.
     :param destination_label: Used to look up destination specific log level filtering.
-        Used with `LogContext.dest_levels`.
+        Used with `LogContext.destination_levels`.
     """
     if _no_color:
         color = False
@@ -334,7 +334,9 @@ def start_logging(
             return
         emitter_default = event.source[LogContext].level
         if destination_label:
-            destination_level = LogContext.dest_levels.get(destination_label, emitter_default)
+            destination_level = LogContext.destination_levels.get(
+                destination_label, emitter_default
+            )
         else:
             destination_level = emitter_default
         source_level = _level_order[destination_level]
