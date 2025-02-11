@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 import yosys_mau.task_loop as tl
 from yosys_mau.task_loop.context import TaskContextDict
 

@@ -7,6 +7,7 @@ import time
 from typing import AsyncIterable
 
 import pytest
+
 import yosys_mau.task_loop as tl
 
 
