@@ -3,6 +3,7 @@ from __future__ import annotations
 from textwrap import dedent
 
 import pytest
+
 from yosys_mau import config_parser, source_str
 from yosys_mau.config_parser import ConfigCommand
 from yosys_mau.source_str import re

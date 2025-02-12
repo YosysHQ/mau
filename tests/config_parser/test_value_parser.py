@@ -3,6 +3,7 @@ from __future__ import annotations
 import hypothesis.strategies as st
 import pytest
 from hypothesis import assume, given
+
 from yosys_mau.config_parser import BoolValue, IntValue, StrValue
 from yosys_mau.source_str.report import InputError
 

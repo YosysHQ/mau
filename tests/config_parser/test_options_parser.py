@@ -4,6 +4,7 @@ from dataclasses import MISSING
 from textwrap import dedent
 
 import pytest
+
 from yosys_mau import source_str
 from yosys_mau.config_parser import (
     BoolValue,

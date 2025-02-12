@@ -3,6 +3,8 @@ from __future__ import annotations
 from textwrap import dedent
 
 import pytest
+
+from tests.test_utils import assert_dataclass_list_match
 from yosys_mau import source_str
 from yosys_mau.config_parser import (
     ConfigParser,
@@ -12,8 +14,6 @@ from yosys_mau.config_parser import (
     postprocess_section,
 )
 from yosys_mau.source_str.report import InputError
-
-from tests.test_utils import assert_dataclass_list_match
 
 
 def test_single_str_section():

@@ -5,6 +5,7 @@ import io
 from dataclasses import dataclass
 
 import pytest
+
 import yosys_mau.task_loop as tl
 
 

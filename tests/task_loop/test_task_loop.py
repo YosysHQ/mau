@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 import pytest
+
 import yosys_mau.task_loop as tl
 
 

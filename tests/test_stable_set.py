@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hypothesis.strategies as st
 from hypothesis import given
+
 from yosys_mau.stable_set import StableSet
 
 
