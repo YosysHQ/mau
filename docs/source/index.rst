@@ -23,4 +23,3 @@ Documentation Contents
    genindex
 
 .. todolist::
-

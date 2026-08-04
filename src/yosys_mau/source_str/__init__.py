@@ -3,6 +3,7 @@
 This module provides a string type :func:`SourceStr` which remembers the source it originates
 from.
 """
+
 # pyright: reportPrivateUsage = false
 from __future__ import annotations
 

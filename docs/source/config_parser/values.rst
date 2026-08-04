@@ -29,4 +29,3 @@ To convert values from the input strings to an appropriate Python type and to re
    :members:
    :show-inheritance:
    :exclude-members: parse
-

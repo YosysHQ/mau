@@ -123,7 +123,7 @@ class LogContext:
 
     level: Level = "info"
     """The minimum log level to display/log.
-    
+
     Can be overridden for named destinations with `destination_levels`.
 
     This does not stop `LogEvent` of smaller levels to be emitted. It is only used to filter which

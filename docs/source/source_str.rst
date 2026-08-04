@@ -77,4 +77,3 @@ Regular Expression Support
 .. autoclass:: Match
   :members:
   :special-members: __getitem__
-
