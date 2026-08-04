@@ -20,4 +20,3 @@ hold several such related components.
 
 
 .. autoclass:: ConfigCommand
-

@@ -40,4 +40,3 @@ Exceptions
 .. autoclass:: LoggedError
    :show-inheritance:
    :members:
-
